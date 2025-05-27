@@ -1,0 +1,12 @@
+openai>=1.0.0
+pandas
+PyPDF2
+ebooklib
+bs4
+python-dotenv
+nltk
+datetime
+webvtt-py
+pytesseract
+opencv-python
+pdf2image

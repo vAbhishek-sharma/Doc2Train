@@ -1,0 +1,35 @@
+# API Keys for OpenAI and DeepSeek
+OPENAI_API_KEY='your-openai-api-key-here'
+
+DEEPSEEK_API_KEY='your-deepseek-api-key-here'
+DEFAULT_ROLE_CONTENT=""
+
+
+DEFAULT_USER_CONTENT=""
+
+
+SPLITTING_METHOD='chunk_splitting,smart_splitting'
+
+
+# Default configuration values
+DEFAULT_PROVIDER=openai
+DEFAULT_MODEL=gpt-4o-mini
+DEFAULT_MAX_TOKENS=2000
+DEFAULT_TEMPERATURE=0.7
+DEFAULT_FILE_FORMAT=txt
+STRUCTURE_TYPE=text
+# Test Mode
+TEST_MODE=false  # Set to false to disable test mode
+
+# Token Size Configurations (for the OpenAI models)
+GPT4O_MINI_MAX_TOKENS=16384
+GPT4O_MAX_TOKENS=2000
+
+# Page Range (default full book)
+START_PAGE=1
+END_PAGE=9999  # Set to a large number for the whole book, otherwise specify the page range
+
+# Default output filename format (using timestamp)
+OUTPUT_FILENAME_FORMAT="%Y%m%d_%H%M%S"
+
+# Additional configuration options as needed
