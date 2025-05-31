@@ -1,0 +1,27 @@
+# requirements-full.txt - Complete Doc2Train v2.0 with all features
+# Use this only if you need local ML models and advanced image processing
+
+# Core dependencies
+python-dotenv>=1.0.0
+pandas>=2.0.0
+requests>=2.31.0
+openai>=1.0.0
+
+# Document processing
+PyMuPDF>=1.23.0
+ebooklib>=0.18
+beautifulsoup4>=4.12.0
+webvtt-py>=0.4.6
+
+# Basic image processing
+Pillow>=10.0.0
+pytesseract>=0.3.10
+
+# Advanced features (Heavy dependencies - 3GB+)
+transformers>=4.35.0   # For local language models
+torch>=2.0.0          # For local ML models
+opencv-python>=4.8.0  # Advanced image processing
+
+# Optional: Vision models (Very heavy)
+# accelerate>=0.24.0
+# sentence-transformers>=2.2.0
