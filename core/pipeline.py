@@ -26,6 +26,15 @@ class ProcessingPipeline:
     """
 
     def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        # NEW: Add resource management
+        from utils.resource_manager import resource_manager
+        self.resource_manager = resource_manager
+
+        # NEW: Centralized config
+        from config.manager import config_manager
+        self.config_manager = config_manager
+        self.config_manager.update(config)
         """
         Initialize processing pipeline
 
@@ -389,55 +398,7 @@ class ProcessingPipeline:
         except Exception as e:
             print(f"⚠️ Error saving resume state: {e}")
 
-class BatchProcessor:
-    """
-    Batch processor for handling large numbers of files efficiently
-    """
 
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.batch_size = config.get('batch_size', 10)
-
-    def process_in_batches(self, file_paths: List[str]) -> Dict[str, Any]:
-        """Process files in batches to manage memory usage"""
-        total_files = len(file_paths)
-        total_results = {
-            'files_processed': 0,
-            'successful': 0,
-            'failed': 0,
-            'total_text_chars': 0,
-            'total_images': 0,
-            'errors': []
-        }
-
-        # Split into batches
-        batches = [file_paths[i:i + self.batch_size]
-                  for i in range(0, len(file_paths), self.batch_size)]
-
-        print(f"📦 Processing {total_files} files in {len(batches)} batches of {self.batch_size}")
-
-        for batch_num, batch_files in enumerate(batches, 1):
-            print(f"\n🔄 Processing batch {batch_num}/{len(batches)} ({len(batch_files)} files)...")
-
-            # Process batch
-            pipeline = ProcessingPipeline(self.config)
-            batch_results = pipeline.process_files(batch_files, None)
-
-            # Accumulate results
-            total_results['files_processed'] += batch_results.get('files_processed', 0)
-            total_results['successful'] += batch_results.get('successful', 0)
-            total_results['failed'] += batch_results.get('failed', 0)
-            total_results['total_text_chars'] += batch_results.get('total_text_chars', 0)
-            total_results['total_images'] += batch_results.get('total_images', 0)
-            total_results['errors'].extend(batch_results.get('errors', []))
-
-            # Memory cleanup between batches
-            import gc
-            gc.collect()
-
-        return total_results
-
-class PerformanceBenchmark:
     """
     Performance benchmarking for the processing pipeline
     """
@@ -525,3 +486,74 @@ def create_processing_pipeline(config: Dict[str, Any]) -> ProcessingPipeline:
         return BatchProcessor(config)
     else:
         return ProcessingPipeline(config)
+
+
+
+
+    # NEW: Add resource-aware processing
+    def _process_files_with_resource_limits(self, file_paths: List[str]):
+        """Process files with resource management"""
+        optimal_workers = self.resource_manager.get_optimal_workers(len(file_paths))
+
+        # Adjust config based on available resources
+        self.config['threads'] = min(self.config.get('threads', 4), optimal_workers)
+
+        # Filter out files that are too large
+        processable_files = []
+        for file_path in file_paths:
+            file_size = Path(file_path).stat().st_size
+            if self.resource_manager.can_process_file(file_size):
+                processable_files.append(file_path)
+            else:
+                print(f"⚠️ Skipping large file: {Path(file_path).name} ({file_size/1024**2:.1f}MB)")
+
+        return processable_files
+
+
+class BatchProcessor:
+    """
+    Batch processor for handling large numbers of files efficiently
+    """
+
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.batch_size = config.get('batch_size', 10)
+
+    def process_in_batches(self, file_paths: List[str]) -> Dict[str, Any]:
+        """Process files in batches to manage memory usage"""
+        total_files = len(file_paths)
+        total_results = {
+            'files_processed': 0,
+            'successful': 0,
+            'failed': 0,
+            'total_text_chars': 0,
+            'total_images': 0,
+            'errors': []
+        }
+
+        # Split into batches
+        batches = [file_paths[i:i + self.batch_size]
+                  for i in range(0, len(file_paths), self.batch_size)]
+
+        print(f"📦 Processing {total_files} files in {len(batches)} batches of {self.batch_size}")
+
+        for batch_num, batch_files in enumerate(batches, 1):
+            print(f"\n🔄 Processing batch {batch_num}/{len(batches)} ({len(batch_files)} files)...")
+
+            # Process batch
+            pipeline = ProcessingPipeline(self.config)
+            batch_results = pipeline.process_files(batch_files, None)
+
+            # Accumulate results
+            total_results['files_processed'] += batch_results.get('files_processed', 0)
+            total_results['successful'] += batch_results.get('successful', 0)
+            total_results['failed'] += batch_results.get('failed', 0)
+            total_results['total_text_chars'] += batch_results.get('total_text_chars', 0)
+            total_results['total_images'] += batch_results.get('total_images', 0)
+            total_results['errors'].extend(batch_results.get('errors', []))
+
+            # Memory cleanup between batches
+            import gc
+            gc.collect()
+
+        return total_results

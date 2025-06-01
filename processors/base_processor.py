@@ -283,42 +283,42 @@ class BaseProcessor(ABC):
 
 
 
-def _clean_text(self, text: str) -> str:
-    """Clean OCR text from multilingual sources"""
+    def _clean_text(self, text: str) -> str:
+        """Clean OCR text from multilingual sources"""
 
-    # Normalize Unicode
-    text = unicodedata.normalize('NFKC', text)
+        # Normalize Unicode
+        text = unicodedata.normalize('NFKC', text)
 
-    # Normalize line endings
-    text = text.replace('\r\n', '\n').replace('\r', '\n')
+        # Normalize line endings
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
 
-    # Remove excessive whitespace
-    text = regex.sub(r'\n{3,}', '\n\n', text)  # Max 2 consecutive newlines
-    text = regex.sub(r'[ \t]{2,}', ' ', text)  # Reduce multiple spaces/tabs to 1
+        # Remove excessive whitespace
+        text = regex.sub(r'\n{3,}', '\n\n', text)  # Max 2 consecutive newlines
+        text = regex.sub(r'[ \t]{2,}', ' ', text)  # Reduce multiple spaces/tabs to 1
 
-    # Remove unusual characters but keep:
-    # - Unicode letters (\p{L})
-    # - Numbers (\p{N})
-    # - Punctuation (\p{P})
-    # - Separators (like spaces, tabs) (\p{Z})
-    allowed = regex.compile(r'[^\p{L}\p{N}\p{P}\p{Z}\n]')
-    text = allowed.sub('', text)
+        # Remove unusual characters but keep:
+        # - Unicode letters (\p{L})
+        # - Numbers (\p{N})
+        # - Punctuation (\p{P})
+        # - Separators (like spaces, tabs) (\p{Z})
+        allowed = regex.compile(r'[^\p{L}\p{N}\p{P}\p{Z}\n]')
+        text = allowed.sub('', text)
 
-    # Optional: Replace common ligatures
-    ligature_map = {
-        'ﬁ': 'fi',
-        'ﬂ': 'fl',
-        '’': "'",
-        '“': '"',
-        '”': '"',
-        '–': '-',  # en-dash
-        '—': '-',  # em-dash
-        '…': '...',  # ellipsis
-    }
-    for bad, good in ligature_map.items():
-        text = text.replace(bad, good)
+        # Optional: Replace common ligatures
+        ligature_map = {
+            'ﬁ': 'fi',
+            'ﬂ': 'fl',
+            '’': "'",
+            '“': '"',
+            '”': '"',
+            '–': '-',  # en-dash
+            '—': '-',  # em-dash
+            '…': '...',  # ellipsis
+        }
+        for bad, good in ligature_map.items():
+            text = text.replace(bad, good)
 
-    return text.strip()
+        return text.strip()
 
     def _validate_extraction_quality(self, text: str, images: List[Dict]) -> bool:
         """Validate extraction quality"""
@@ -556,7 +556,7 @@ class ProcessorRegistry:
             print(f"     Extensions: {', '.join(details['extensions'])}")
             print(f"     Class: {details['class']}")
 
-# Global processor registry instance
+    # Global processor registry instance
 _processor_registry = ProcessorRegistry()
 
 def get_processor_registry() -> ProcessorRegistry:
@@ -582,34 +582,3 @@ def discover_plugins(plugin_dir: str):
 def list_all_processors():
     """List all registered processors"""
     _processor_registry.list_processors()
-
-# Enhanced processor wrapper for backwards compatibility
-class ProcessorWrapper:
-    """Wrapper to maintain backwards compatibility with existing processor functions"""
-
-    def __init__(self, config: Optional[Dict] = None):
-        self.config = config or {}
-
-    def extract_content(self, file_path: str, use_cache: bool = True) -> Tuple[str, List[Dict]]:
-        """Extract content using appropriate processor"""
-        processor = get_processor_for_file(file_path, self.config)
-        return processor.extract_content(file_path, use_cache)
-
-    def get_file_info(self, file_path: str) -> Dict[str, Any]:
-        """Get file information using appropriate processor"""
-        try:
-            processor = get_processor_for_file(file_path, self.config)
-            return processor.get_file_info(file_path)
-        except ValueError:
-            # Unsupported file type
-            return {
-                'name': Path(file_path).name,
-                'supported': False,
-                'error': 'Unsupported file type'
-            }
-
-# Convenience function for backwards compatibility
-def extract_content_with_processor(file_path: str, config: Optional[Dict] = None, use_cache: bool = True) -> Tuple[str, List[Dict]]:
-    """Extract content using the processor system"""
-    wrapper = ProcessorWrapper(config)
-    return wrapper.extract_content(file_path, use_cache)

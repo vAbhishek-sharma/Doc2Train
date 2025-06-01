@@ -6,9 +6,9 @@ Now with proper class-based processors and registry system
 
 # Import the base processor and registry
 from .base_processor import (
-    BaseProcessor, ProcessorRegistry, get_processor_registry,
+    BaseProcessor, get_processor_registry,
     register_processor, get_processor_for_file, get_supported_extensions,
-    discover_plugins, list_all_processors, extract_content_with_processor
+    discover_plugins, list_all_processors
 )
 
 # Import all processor classes
@@ -64,7 +64,7 @@ _register_all_processors()
 
 __all__ = [
     # Base processor and registry
-    'BaseProcessor', 'ProcessorRegistry', 'get_processor_registry',
+    'BaseProcessor', 'get_processor_registry',
     'register_processor', 'get_processor_for_file', 'get_supported_extensions',
     'discover_plugins', 'list_all_processors', 'extract_content_with_processor',
 
