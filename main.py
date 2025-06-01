@@ -27,22 +27,27 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
-    from core.extractor import extract_content, extract_batch, get_supported_files
-    from core.generator import generate_training_data, generate_batch
-    from core.processor import process_files, save_results, get_processing_summary
+    # Import core functionality
+    from utils.files import get_supported_files
+    from processors import get_processor_for_file, get_supported_extensions
     from core.pipeline import ProcessingPipeline
-    from config.settings import *
+
+    # Import utilities
     from utils.progress import ProgressTracker, ProgressDisplay
-    from cli.args import validate_args_enhanced
     from utils.validation import validate_input_enhanced
     from utils.cache import CacheManager
-    from cli.args import create_enhanced_parser, parse_skip_pages, args_to_config
-    from cli.commands import execute_processing_command
+    from utils.config import *  # Import all config variables
+
+    # Import CLI components
+    from cli.args import create_enhanced_parser, parse_skip_pages, args_to_config, validate_args_enhanced
+
+    # Import output handling
     from outputs.writers import OutputWriter
-    import pdb
+
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure all required files are in place")
+    print("Missing dependencies? Try: pip install -r requirements.txt")
     sys.exit(1)
 
 # Global progress tracking
@@ -83,6 +88,7 @@ def main():
         supported_files = get_supported_files(args.input_path)
         if not supported_files:
             print(f"❌ Error: No supported files found in '{args.input_path}'")
+            print(f"Supported extensions: {', '.join(get_supported_extensions())}")
             return 1
 
         # Apply configuration overrides
@@ -140,29 +146,6 @@ def main():
             import traceback
             traceback.print_exc()
         return 1
-
-def apply_config_overrides(args):
-    """Apply command line argument overrides to global config"""
-    global CHUNK_SIZE, MAX_WORKERS, OUTPUT_DIR, USE_CACHE, TEST_MODE, VERBOSE
-    global EXTRACT_IMAGES, USE_OCR, MIN_TEXT_LENGTH
-
-    # Update global config with command line args
-    CHUNK_SIZE = getattr(args, 'chunk_size', CHUNK_SIZE)
-    MAX_WORKERS = getattr(args, 'max_workers', MAX_WORKERS)
-    OUTPUT_DIR = getattr(args, 'output_dir', OUTPUT_DIR)
-    USE_CACHE = not getattr(args, 'no_cache', False)
-    TEST_MODE = getattr(args, 'test_mode', False)
-    VERBOSE = getattr(args, 'verbose', False)
-    MIN_TEXT_LENGTH = getattr(args, 'min_text_length', MIN_TEXT_LENGTH)
-
-    # Set provider override
-    if hasattr(args, 'provider') and args.provider:
-        os.environ['DEFAULT_PROVIDER'] = args.provider
-
-    # Enable test mode if requested
-    if TEST_MODE:
-        os.environ['TEST_MODE'] = 'true'
-        print("🧪 Test mode enabled - processing small sample only")
 
 def show_processing_plan_enhanced(args, files: List[str], config: Dict):
     """Show enhanced processing plan"""
@@ -241,8 +224,11 @@ def perform_enhanced_dry_run(files: List[str], config: Dict):
         total_size += size_mb
 
         # Get processor info
-        from processors import get_processor_for_file
-        processor_name = get_processor_for_file(file_path)
+        try:
+            processor = get_processor_for_file(file_path)
+            processor_name = processor.processor_name
+        except:
+            processor_name = "Unknown"
 
         # Estimate processing time
         if path.suffix.lower() == '.pdf':

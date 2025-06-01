@@ -1,7 +1,7 @@
 # cli/args.py
 """
 Complete enhanced command line argument parsing for Doc2Train
-All enterprise features with comprehensive validation
+All enterprise features with comprehensive validation and Smart PDF Analysis
 """
 
 import argparse
@@ -9,9 +9,9 @@ from typing import List, Dict, Any
 from pathlib import Path
 
 def create_enhanced_parser() -> argparse.ArgumentParser:
-    """Create the complete enhanced argument parser"""
+    """Create the complete enhanced argument parser with Smart PDF Analysis"""
     parser = argparse.ArgumentParser(
-        description="Doc2Train v2.0 Enhanced - Enterprise document processing",
+        description="Doc2Train v2.0 Enhanced - Enterprise document processing with Smart PDF Analysis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=get_examples_text()
     )
@@ -22,12 +22,12 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         help='File or directory to process'
     )
 
-    # Processing mode
+    # Processing mode - NOW INCLUDES ANALYZE MODE
     parser.add_argument(
         '--mode',
-        choices=['extract-only', 'generate', 'full', 'resume'],
+        choices=['extract-only', 'generate', 'full', 'resume', 'analyze'],
         default='extract-only',
-        help='Processing mode (default: extract-only)'
+        help='Processing mode (default: extract-only). Use "analyze" for PDF content analysis only.'
     )
 
     # Generation types
@@ -119,7 +119,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         help='Number of files to process in each batch (default: 10)'
     )
 
-    # Feature flags
+    # Feature flags - ENHANCED WITH SMART PDF ANALYSIS
     feature_group = parser.add_argument_group('🚀 Features')
     feature_group.add_argument(
         '--include-vision',
@@ -136,6 +136,19 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         '--no-ocr',
         action='store_true',
         help='Disable OCR processing'
+    )
+
+    # NEW: Smart PDF Analysis options
+    feature_group.add_argument(
+        '--smart-pdf-analysis',
+        action='store_true',
+        default=True,
+        help='Use smart PDF analysis for optimal processing strategy (default: enabled)'
+    )
+    feature_group.add_argument(
+        '--no-smart-analysis',
+        action='store_true',
+        help='Disable smart PDF analysis (use basic extraction)'
     )
 
     # Configuration overrides
@@ -349,9 +362,10 @@ def args_to_config(args) -> Dict[str, Any]:
         'chunk_size': args.chunk_size,
         'overlap': args.overlap,
 
-        # Features
+        # Features - INCLUDING SMART PDF ANALYSIS
         'use_ocr': args.use_ocr and not args.no_ocr,
         'extract_images': True,  # Always extract images
+        'use_smart_analysis': args.smart_pdf_analysis and not args.no_smart_analysis,
 
         # LLM settings
         'provider': args.provider,
@@ -385,13 +399,18 @@ def args_to_config(args) -> Dict[str, Any]:
     return config
 
 def get_examples_text() -> str:
-    """Get comprehensive CLI examples"""
+    """Get comprehensive CLI examples with Smart PDF Analysis"""
     return """
-🚀 Enhanced Examples:
+🚀 Enhanced Examples with Smart PDF Analysis:
 
 Basic Usage:
   python main.py documents/ --mode extract-only --show-progress
   python main.py file.pdf --mode generate --type conversations
+
+PDF Analysis (NEW):
+  python main.py document.pdf --mode analyze
+  python main.py documents/ --mode analyze --verbose
+  python main.py mixed_pdfs/ --mode extract-only --smart-pdf-analysis
 
 Page Control:
   python main.py document.pdf --start-page 5 --end-page 50
@@ -408,6 +427,11 @@ Quality Control:
   python main.py documents/ --min-text-length 200 --quality-threshold 0.8
   python main.py documents/ --header-regex "CONFIDENTIAL|Page \\d+"
 
+Smart PDF Processing (NEW):
+  python main.py scanned_docs/ --smart-pdf-analysis --use-ocr
+  python main.py mixed_pdfs/ --mode extract-only --smart-pdf-analysis --verbose
+  python main.py documents/ --no-smart-analysis  # Use basic extraction
+
 Advanced Processing:
   python main.py documents/ --mode full --include-vision --provider openai
   python main.py documents/ --mode generate --type conversations,qa_pairs,summaries
@@ -417,6 +441,11 @@ Debug & Testing:
   python main.py documents/ --dry-run --show-images --verbose
   python main.py documents/ --test-mode --benchmark
   python main.py documents/ --validate-only
+
+Smart Analysis Examples:
+  python main.py research_papers/ --mode analyze --output-dir analysis_results
+  python main.py textbooks/ --smart-pdf-analysis --verbose --show-progress
+  python main.py scanned_docs/ --mode extract-only --smart-pdf-analysis --use-ocr
     """
 
 def validate_args_enhanced(args) -> bool:
@@ -511,6 +540,10 @@ def validate_args_enhanced(args) -> bool:
     if args.test_mode and args.resume_from:
         errors.append("Cannot use --test-mode with --resume-from")
 
+    # NEW: Validate Smart PDF Analysis options
+    if args.smart_pdf_analysis and args.no_smart_analysis:
+        errors.append("Cannot use both --smart-pdf-analysis and --no-smart-analysis")
+
     # Validate LLM requirements
     if args.mode in ['generate', 'full']:
         if not args.provider:
@@ -518,6 +551,13 @@ def validate_args_enhanced(args) -> bool:
             pass
         elif args.provider == 'local' and not args.model:
             errors.append("Local provider requires --model to be specified")
+
+    # Validate analyze mode
+    if args.mode == 'analyze':
+        # Check if input contains PDF files
+        input_path = Path(args.input_path)
+        if input_path.is_file() and input_path.suffix.lower() != '.pdf':
+            errors.append("Analyze mode currently only supports PDF files")
 
     if errors:
         error_msg = "❌ Argument validation failed:\n" + "\n".join(f"  • {error}" for error in errors)
