@@ -8,7 +8,7 @@ import fitz  # PyMuPDF
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
-
+import pdb
 class PDFContentType(Enum):
     TEXT_ONLY = "text_only"
     IMAGE_ONLY = "image_only"
@@ -266,7 +266,7 @@ def analyze_and_extract_pdf(file_path: str) -> Tuple[str, List[Dict], PDFAnalysi
     Returns:
         Tuple of (text_content, images_list, analysis_result)
     """
-
+    pdb.set_trace()
     # First, analyze the PDF
     analyzer = SmartPDFAnalyzer()
     analysis = analyzer.analyze_pdf(file_path)
@@ -300,7 +300,7 @@ def analyze_and_extract_pdf(file_path: str) -> Tuple[str, List[Dict], PDFAnalysi
 
     return text, images, analysis
 
-def extract_mixed_content(file_path: str, analysis: PDFAnalysis) -> Tuple[str, List[Dict]]:
+def extract_mixed_content(file_path: str, analysis: PDFAnalysis, verbose: bool = False) -> Tuple[str, List[Dict]]:
     """Extract content from mixed text/image PDFs with context linking"""
 
     doc = fitz.open(file_path)
@@ -308,63 +308,85 @@ def extract_mixed_content(file_path: str, analysis: PDFAnalysis) -> Tuple[str, L
     images = []
 
     for page_num in range(len(doc)):
-        page = doc[page_num]
+        try:
+            page = doc[page_num]
+            page_text = page.get_text()
 
-        # Extract text
-        page_text = page.get_text()
+            # Extract images with enhanced context
+            page_images = page.get_images(full=True)
 
-        # Extract images with enhanced context
-        page_images = page.get_images()
+            if page_images and page_text.strip():
+                for img_index, img in enumerate(page_images):
+                    try:
+                        # Skip if img doesn't have enough data
+                        if len(img) < 7:
+                            if verbose:
+                                print(f"⚠️ Skipping incomplete image ref on page {page_num + 1}")
+                            continue
 
-        if page_images and page_text.strip():
-            # Mixed content page - link images to surrounding text
-            for img_index, img in enumerate(page_images):
-                try:
-                    # Get image location
-                    img_rect = page.get_image_bbox(img)
+                        xref = img[0]
 
-                    # Extract text before and after image
-                    context_before = extract_text_before_image(page, img_rect)
-                    context_after = extract_text_after_image(page, img_rect)
+                        # Try primary and fallback bbox extraction
+                        try:
+                            img_rect = page.get_image_bbox(img)
+                        except Exception:
+                            img_rects = page.get_image_rects(xref)
+                            img_rect = img_rects[0] if img_rects else fitz.Rect(0, 0, page.rect.width, page.rect.height)
 
-                    # Get image data
-                    xref = img[0]
-                    pix = fitz.Pixmap(doc, xref)
+                        # Extract image data
+                        pix = fitz.Pixmap(doc, xref)
 
-                    if pix.n - pix.alpha < 4:  # Valid image
-                        img_data = pix.tobytes("png")
+                        # Optional: skip small images (e.g., icons)
+                        if pix.width * pix.height < 10000:
+                            if verbose:
+                                print(f"⏭️ Skipping small image ({pix.width}x{pix.height}) on page {page_num + 1}")
+                            del pix
+                            continue
 
-                        # Enhanced context for mixed content
-                        enhanced_context = {
-                            'text_before': context_before,
-                            'text_after': context_after,
-                            'full_page_text': page_text,
-                            'page_type': 'mixed_content',
-                            'position_in_page': get_image_position(img_rect, page.rect)
-                        }
+                        if pix.n - pix.alpha < 4:
+                            img_data = pix.tobytes("png")
 
-                        images.append({
-                            'page_num': page_num + 1,
-                            'image_index': img_index,
-                            'data': img_data,
-                            'context': enhanced_context,
-                            'bbox': [img_rect.x0, img_rect.y0, img_rect.x1, img_rect.y1],
-                            'content_type': 'mixed'
-                        })
+                            enhanced_context = {
+                                'text_before': extract_text_before_image(page, img_rect),
+                                'text_after': extract_text_after_image(page, img_rect),
+                                'full_page_text': page_text,
+                                'page_type': 'mixed_content',
+                                'position_in_page': get_image_position(img_rect, page.rect)
+                            }
 
-                    pix = None
+                            images.append({
+                                'page_num': page_num + 1,
+                                'image_index': img_index,
+                                'data': img_data,
+                                'format': 'png',
+                                'context': enhanced_context,
+                                'bbox': [img_rect.x0, img_rect.y0, img_rect.x1, img_rect.y1],
+                                'content_type': 'mixed',
+                                'dimensions': (pix.width, pix.height)
+                            })
 
-                except Exception as e:
-                    print(f"Error processing image {img_index} on page {page_num}: {e}")
+                            if verbose:
+                                print(f"✅ Extracted image {img_index + 1} on page {page_num + 1}: {pix.width}x{pix.height}")
 
-        # Add page text with image placeholders
-        if page_text.strip():
-            if page_images:
-                # Insert image placeholders in text for better context
-                enhanced_text = insert_image_placeholders(page_text, page_images, page)
-                text_content += enhanced_text + "\n\n"
-            else:
-                text_content += page_text + "\n\n"
+                        del pix
+
+                    except Exception as e:
+                        if verbose:
+                            print(f"⚠️ Error extracting image {img_index} on page {page_num + 1}: {e}")
+                        continue
+
+            # Add page text with placeholder
+            if page_text.strip():
+                if page_images:
+                    enhanced_text = insert_image_placeholders(page_text, page_images, page)
+                    text_content += enhanced_text + "\n\n"
+                else:
+                    text_content += page_text + "\n\n"
+
+        except Exception as e:
+            if verbose:
+                print(f"❌ Error processing page {page_num + 1}: {e}")
+            continue
 
     doc.close()
     return text_content.strip(), images
@@ -424,7 +446,8 @@ def insert_image_placeholders(text: str, images: List, page) -> str:
 def extract_text_focused(file_path: str) -> Tuple[str, List[Dict]]:
     """Extract from text-focused PDFs"""
     from processors.pdf_processor import extract_pdf_content
-    return extract_pdf_content(file_path)
+    return extract_pdf_content(file_path, skip_analysis=True)
+
 
 def extract_image_focused(file_path: str) -> Tuple[str, List[Dict]]:
     """Extract from image-heavy PDFs with minimal text"""

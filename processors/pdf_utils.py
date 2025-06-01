@@ -1,48 +1,47 @@
-# processors/pdf_utils.py - NEW FILE (extracted from pdf_processor.py)
-"""PDF processing utilities - extracted to reduce file size"""
+# processors/pdf_utils.py
+"""PDF processing utilities - safe image extraction and OCR"""
 
+import fitz  # PyMuPDF
+import io
 from typing import List, Dict
+from PIL import Image
+from config import settings as config
 
-def extract_page_images_safe( page, page_num: int, doc) -> List[Dict]:
-    """Extract images from a PDF page - safe version"""
+
+def extract_page_images_safe(page, page_num: int, doc) -> List[Dict]:
+    """Extract images from a PDF page - safe version with optional OCR and filtering"""
     images = []
-    min_image_size = self.config.get('min_image_size', 1000)
+    min_image_size = 1000  # pixel threshold
 
     try:
-        image_list = page.get_images()
-        if self.config.get('verbose') and image_list:
+        image_list = page.get_images(full=True)
+        if getattr(config, 'VERBOSE', False) and image_list:
             print(f"🖼️  Page {page_num}: Found {len(image_list)} images")
 
         for img_index, img in enumerate(image_list):
             try:
-                # Get image data using xref
                 xref = img[0]
                 pix = fitz.Pixmap(doc, xref)
 
-                if pix.n - pix.alpha < 4:  # Valid image (GRAY or RGB)
-                    # Convert to bytes
+                # Check if it's a valid image (not CMYK or too complex)
+                if pix.n - pix.alpha < 4:
                     if pix.alpha:
                         pix = fitz.Pixmap(fitz.csRGB, pix)
 
-                    # Check size filter
                     image_size = pix.width * pix.height
                     if image_size < min_image_size:
-                        if self.config.get('verbose'):
+                        if getattr(config, 'VERBOSE', False):
                             print(f"   ⏭️ Skipping small image: {pix.width}x{pix.height}")
-                        pix = None
+                        del pix
                         continue
 
                     img_data = pix.tobytes("png")
-
-                    # Get page text as context
                     page_text = page.get_text()
 
-                    # Try OCR on image if enabled
                     ocr_text = ""
-                    if self.config.get('use_ocr', True):
-                        ocr_text = self._ocr_image_data(img_data)
+                    if getattr(config, 'USE_OCR', True):
+                        ocr_text = perform_ocr_on_image_data(img_data)
 
-                    # Create image info
                     image_info = {
                         'page_num': page_num,
                         'image_index': img_index,
@@ -56,65 +55,56 @@ def extract_page_images_safe( page, page_num: int, doc) -> List[Dict]:
 
                     images.append(image_info)
 
-                    if self.config.get('verbose'):
+                    if getattr(config, 'VERBOSE', False):
                         print(f"✅ Extracted image {img_index + 1}: {pix.width}x{pix.height}")
 
-                pix = None  # Clean up
+                del pix
 
             except Exception as e:
-                if self.config.get('verbose'):
+                if getattr(config, 'VERBOSE', False):
                     print(f"⚠️  Error extracting image {img_index} from page {page_num}: {e}")
                 continue
 
     except Exception as e:
-        if self.config.get('verbose'):
+        if getattr(config, 'VERBOSE', False):
             print(f"❌ Error processing images on page {page_num}: {e}")
 
     return images
 
 
-def perform_ocr_on_page( page ) -> str:
-    """Perform OCR on a PDF page"""
+def perform_ocr_on_image_data(img_data: bytes) -> str:
+    """Perform OCR on image data (PNG bytes)"""
     try:
         import pytesseract
-
-        # Convert page to image
-        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Higher resolution
-        img_data = pix.tobytes("png")
-
-        # OCR the image
         pil_image = Image.open(io.BytesIO(img_data))
-        ocr_text = pytesseract.image_to_string(pil_image)
+        return pytesseract.image_to_string(pil_image)
 
-        pix = None
-        return ocr_text
-
-    except ImportError:
-        if self.config.get('verbose'):
-            print("⚠️  pytesseract not available for OCR")
-        return ""
     except Exception as e:
-        if self.config.get('verbose'):
-            print(f"⚠️  OCR failed: {e}")
+        if getattr(config, 'VERBOSE', False):
+            print(f"⚠️  OCR failed on image data: {e}")
         return ""
 
 
-def assess_pdf_image_quality( pix ) -> float:
-    """Assess image quality (0.0 to 1.0)"""
+def perform_ocr_on_page(page) -> str:
+    """Render page as image and apply OCR"""
     try:
-        # Basic quality assessment based on size and color diversity
+        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x resolution
+        img_data = pix.tobytes("png")
+        del pix
+        return perform_ocr_on_image_data(img_data)
+
+    except Exception as e:
+        if getattr(config, 'VERBOSE', False):
+            print(f"⚠️  OCR failed on page: {e}")
+        return ""
+
+
+def assess_pdf_image_quality(pix) -> float:
+    """Estimate image quality based on size"""
+    try:
         width, height = pix.width, pix.height
         area = width * height
-
-        # Size score (larger = better, up to a point)
-        size_score = min(1.0, area / 100000)  # Normalize to 100K pixels
-
-        # TODO: Add more sophisticated quality metrics
-        # - Color diversity
-        # - Sharpness
-        # - Contrast
-
+        size_score = min(1.0, area / 100_000)  # Normalize to 100K pixels
         return size_score
-
     except:
-        return 0.5  # Default moderate quality
+        return 0.5  # Fallback quality

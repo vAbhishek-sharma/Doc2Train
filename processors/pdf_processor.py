@@ -8,7 +8,7 @@ import io
 from PIL import Image
 from typing import Tuple, List, Dict
 from pathlib import Path
-
+import pdb
 from .base_processor import BaseProcessor
 from .smart_pdf_analyzer import SmartPDFAnalyzer, analyze_and_extract_pdf
 from .pdf_utils import extract_page_images_safe, perform_ocr_on_page, assess_pdf_image_quality
@@ -182,8 +182,6 @@ class PDFProcessor(BaseProcessor):
             return 10.0  # Default estimate
 
 
-# Keep backward compatibility function
-def extract_pdf_content(file_path: str) -> Tuple[str, List[Dict]]:
-    """Backward compatibility function"""
-    processor = PDFProcessor()
+def extract_pdf_content(file_path: str, skip_analysis=False) -> Tuple[str, List[Dict]]:
+    processor = PDFProcessor(config={'use_smart_analysis': not skip_analysis})
     return processor.extract_content_impl(file_path)

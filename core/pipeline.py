@@ -26,21 +26,7 @@ class ProcessingPipeline:
     """
 
     def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        # NEW: Add resource management
-        from utils.resource_manager import resource_manager
-        self.resource_manager = resource_manager
-
-        # NEW: Centralized config
-        from config.manager import config_manager
-        self.config_manager = config_manager
-        self.config_manager.update(config)
-        """
-        Initialize processing pipeline
-
-        Args:
-            config: Complete processing configuration
-        """
+        """Initialize processing pipeline"""
         self.config = config
         self.stats = {
             'files_total': 0,
@@ -399,9 +385,8 @@ class ProcessingPipeline:
             print(f"⚠️ Error saving resume state: {e}")
 
 
-    """
-    Performance benchmarking for the processing pipeline
-    """
+class PerformanceBenchmark:
+    """Performance benchmarking for the processing pipeline"""
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -424,12 +409,12 @@ class ProcessingPipeline:
             # Create config for this test
             test_config = self.config.copy()
             test_config['threads'] = thread_count
-            test_config['show_progress'] = False  # Disable for cleaner output
+            test_config['show_progress'] = False
 
             # Run test
             start_time = time.time()
             pipeline = ProcessingPipeline(test_config)
-            results = pipeline.process_files(file_paths[:6], None)  # Test with up to 6 files
+            results = pipeline.process_files(file_paths[:6], None)
             end_time = time.time()
 
             # Record results
@@ -451,7 +436,6 @@ class ProcessingPipeline:
 
         # Display results
         self._display_benchmark_results(benchmark_results)
-
         return benchmark_results
 
     def _display_benchmark_results(self, results: Dict[str, Any]):
@@ -465,55 +449,11 @@ class ProcessingPipeline:
             time_taken = result['processing_time']
             throughput = result['throughput']
             speedup = result.get('speedup', 1.0)
-
             print(f"{threads:<8} {time_taken:<10.2f} {throughput:<10.2f} {speedup:<10}")
-
-# Factory function for creating appropriate processor
-def create_processing_pipeline(config: Dict[str, Any]) -> ProcessingPipeline:
-    """
-    Create appropriate processing pipeline based on configuration
-
-    Args:
-        config: Processing configuration
-
-    Returns:
-        ProcessingPipeline instance
-    """
-    # Choose processor type based on file count and config
-    if config.get('benchmark'):
-        return PerformanceBenchmark(config)
-    elif config.get('batch_size') and config.get('batch_size') < 50:
-        return BatchProcessor(config)
-    else:
-        return ProcessingPipeline(config)
-
-
-
-
-    # NEW: Add resource-aware processing
-    def _process_files_with_resource_limits(self, file_paths: List[str]):
-        """Process files with resource management"""
-        optimal_workers = self.resource_manager.get_optimal_workers(len(file_paths))
-
-        # Adjust config based on available resources
-        self.config['threads'] = min(self.config.get('threads', 4), optimal_workers)
-
-        # Filter out files that are too large
-        processable_files = []
-        for file_path in file_paths:
-            file_size = Path(file_path).stat().st_size
-            if self.resource_manager.can_process_file(file_size):
-                processable_files.append(file_path)
-            else:
-                print(f"⚠️ Skipping large file: {Path(file_path).name} ({file_size/1024**2:.1f}MB)")
-
-        return processable_files
 
 
 class BatchProcessor:
-    """
-    Batch processor for handling large numbers of files efficiently
-    """
+    """Batch processor for handling large numbers of files efficiently"""
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -557,3 +497,14 @@ class BatchProcessor:
             gc.collect()
 
         return total_results
+
+
+# Factory function for creating appropriate processor
+def create_processing_pipeline(config: Dict[str, Any]) -> ProcessingPipeline:
+    """Create appropriate processing pipeline based on configuration"""
+    if config.get('benchmark'):
+        return PerformanceBenchmark(config)
+    elif config.get('batch_size') and config.get('batch_size') < 50:
+        return BatchProcessor(config)
+    else:
+        return ProcessingPipeline(config)
