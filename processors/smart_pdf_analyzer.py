@@ -266,7 +266,6 @@ def analyze_and_extract_pdf(file_path: str) -> Tuple[str, List[Dict], PDFAnalysi
     Returns:
         Tuple of (text_content, images_list, analysis_result)
     """
-    pdb.set_trace()
     # First, analyze the PDF
     analyzer = SmartPDFAnalyzer()
     analysis = analyzer.analyze_pdf(file_path)

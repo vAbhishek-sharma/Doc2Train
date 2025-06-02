@@ -234,6 +234,12 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         help='Only validate configuration and input, don\'t process'
     )
 
+    debug_group.add_argument(
+        '--clear-cache-after',
+        action='store_true',
+        help='Clear cache after processing completion'
+    )
+
     # Advanced features
     advanced_group = parser.add_argument_group('🔬 Advanced')
     advanced_group.add_argument(
@@ -394,6 +400,7 @@ def args_to_config(args) -> Dict[str, Any]:
         # Derived settings
         'fail_on_error': not args.save_per_file,  # More tolerant with per-file saving
         'allow_low_quality': args.test_mode,      # More lenient in test mode
+        'clear_cache_after_run': args.clear_cache_after if hasattr(args, 'clear_cache_after') else False,
     }
 
     return config

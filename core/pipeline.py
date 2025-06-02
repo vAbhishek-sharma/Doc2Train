@@ -105,8 +105,28 @@ class ProcessingPipeline:
                 'config_used': self.config
             }
 
+
+            # Add this before calculating final_results
+            if self.stats['files_successful'] > 0:
+                try:
+                    # Save extraction results if we have any
+                    if hasattr(self, '_extracted_results'):
+                        self.output_writer.save_extraction_results({
+                            'mode': self.config['mode'],
+                            'extracted_data': self._extracted_results,
+                            'files_processed': self.stats['files_total'],
+                            'successful': self.stats['files_successful'],
+                            'config_used': self.config
+                        })
+                    print(f"💾 Results saved to: {self.config['output_dir']}")
+                except Exception as e:
+                    print(f"⚠️ Error saving results: {e}")
             # Show completion summary
             show_completion_summary(self.config)
+            try:
+                self.cleanup_after_processing()
+            except Exception as e:
+                print(f"⚠️ Cache cleanup warning: {e}")
 
             return final_results
 
@@ -187,12 +207,15 @@ class ProcessingPipeline:
                     if self.config.get('save_per_file') and result['success']:
                         self._save_per_file_result(file_path, result)
 
-                    # Update progress display
-                    if self.config.get('show_progress'):
-                        update_progress_display()
+                    # NEW: Force progress display update
+                    from utils.progress import update_progress_display
+                    update_progress_display()
 
                 except Exception as e:
                     self._handle_file_error(file_path, str(e))
+                    # NEW: Update progress even on error
+                    from utils.progress import update_progress_display
+                    update_progress_display()
 
         return {'parallel_processing': True}
 
@@ -207,12 +230,15 @@ class ProcessingPipeline:
                 if self.config.get('save_per_file') and result['success']:
                     self._save_per_file_result(file_path, result)
 
-                # Update progress display
-                if self.config.get('show_progress'):
-                    update_progress_display()
+                # NEW: Force progress display update
+                from utils.progress import update_progress_display
+                update_progress_display()
 
             except Exception as e:
                 self._handle_file_error(file_path, str(e))
+                # NEW: Update progress even on error
+                from utils.progress import update_progress_display
+                update_progress_display()
 
         return {'sequential_processing': True}
 
@@ -242,6 +268,10 @@ class ProcessingPipeline:
                 'processor': processor.processor_name
             }
 
+            if not hasattr(self, '_extracted_results'):
+                self._extracted_results = {}
+            if result['success']:
+                self._extracted_results[file_path] = (result['text'], result['images'])
             return result
 
         except Exception as e:
@@ -384,6 +414,38 @@ class ProcessingPipeline:
         except Exception as e:
             print(f"⚠️ Error saving resume state: {e}")
 
+    def cleanup_after_processing(self):
+        """Clean up resources after processing completion"""
+        if self.config.get('clear_cache_after_run', False):
+            try:
+                from utils.cache import get_cache_stats, cleanup_cache
+
+                # Show before stats
+                before_stats = get_cache_stats()
+                print(f"🔍 Before cleanup: {before_stats.get('cache_entries', 0)} entries, {before_stats.get('total_size_mb', 0):.1f} MB")
+
+                # Try cleanup
+                cleanup_cache()
+
+                # Show after stats
+                after_stats = get_cache_stats()
+                print(f"🔍 After cleanup: {after_stats.get('cache_entries', 0)} entries, {after_stats.get('total_size_mb', 0):.1f} MB")
+
+                # If still has entries, force clear
+                if after_stats.get('cache_entries', 0) > 0:
+                    print("🔧 Cleanup didn't work, trying force clear...")
+                    from utils.cache import clear_cache
+                    clear_cache()
+
+                    final_stats = get_cache_stats()
+                    print(f"🔍 After force clear: {final_stats.get('cache_entries', 0)} entries")
+
+                print("🧹 Cache cleanup completed")
+
+            except Exception as e:
+                print(f"❌ Cache cleanup error: {e}")
+                import traceback
+                traceback.print_exc()
 
 class PerformanceBenchmark:
     """Performance benchmarking for the processing pipeline"""
