@@ -22,6 +22,7 @@ from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from datetime import datetime
+from utils.config_loader import get_config_loader
 
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -67,7 +68,7 @@ def print_banner():
     print(banner)
 
 def main():
-    """Enhanced main entry point with complete feature set"""
+    """Enhanced main entry point with YAML config support"""
 
     # Print banner
     print_banner()
@@ -77,12 +78,39 @@ def main():
     args = parser.parse_args()
 
     try:
-        # Validate arguments
+        # NEW: Check for config commands first
+        if hasattr(args, 'show_config') and args.show_config:
+            show_current_config()
+            return 0
+        if hasattr(args, 'save_config') and args.save_config:
+            save_config_from_args(args)
+            return 0
+
+        # NEW: Load YAML config and merge with args
+        config_file = getattr(args, 'config_file', 'config.yaml')
+        if config_file and Path(config_file).exists():
+            config_loader = get_config_loader(config_file)
+            config_loader.update_from_args(args)
+            config = config_loader.get_processing_config()
+            print(f"⚙️ Using config: {config_file}")
+        else:
+            # Fallback to args-based config
+            config = args_to_config(args)
+
+        # Show async/sync mode
+        if config.get('use_async', True):
+            concurrent_calls = config.get('max_concurrent_calls', 5)
+            print(f"🚀 Async mode: {concurrent_calls} concurrent LLM calls")
+        else:
+            print(f"📋 Sync mode: Sequential LLM processing")
+
+        # Validate arguments (keep existing validation)
         validate_args_enhanced(args)
 
-        # Validate input and get files
+        # Validate input and get files (keep existing logic)
         if not validate_input_enhanced(args):
             return 1
+
 
         # Get supported files
         supported_files = get_supported_files(args.input_path)
@@ -91,14 +119,11 @@ def main():
             print(f"Supported extensions: {', '.join(get_supported_extensions())}")
             return 1
 
-        # Apply configuration overrides
-        apply_config_overrides(args)
-
-        # Convert args to processing config
-        config = args_to_config(args)
+        # Set input path in config
+        config['input_path'] = args.input_path
 
         # Limit files in test mode
-        if args.test_mode:
+        if config.get('test_mode'):
             supported_files = supported_files[:TEST_MAX_FILES]
             print(f"🧪 Test mode: Processing only {len(supported_files)} files")
 
@@ -106,12 +131,12 @@ def main():
         show_processing_plan_enhanced(args, supported_files, config)
 
         # Perform dry run if requested
-        if args.dry_run:
+        if config.get('dry_run'):
             perform_enhanced_dry_run(supported_files, config)
             return 0
 
         # Confirm processing (unless in test mode)
-        if not args.test_mode and not args.show_progress:
+        if not config.get('test_mode') and not config.get('show_progress'):
             response = input("🚀 Ready to start processing? [Y/n]: ").strip().lower()
             if response in ['n', 'no']:
                 print("Processing cancelled.")
@@ -119,7 +144,7 @@ def main():
 
         # Initialize progress tracking
         progress_tracker.initialize(len(supported_files))
-        progress_display.set_show_progress(args.show_progress)
+        progress_display.set_show_progress(config.get('show_progress', True))
 
         # Execute enhanced processing
         pipeline = ProcessingPipeline(config)
@@ -132,17 +157,13 @@ def main():
 
     except KeyboardInterrupt:
         print("\n⚠️ Processing interrupted by user")
-
         # Show partial results if any
         if progress_tracker.get_completed_count() > 0:
             print(f"📊 Partial completion: {progress_tracker.get_completed_count()}/{progress_tracker.get_total_count()} files")
-            if args.save_per_file:
-                print(f"💾 Completed files saved in: {args.output_dir}/per_file/")
-
         return 130
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
-        if args.verbose:
+        if config.get('verbose', False):
             import traceback
             traceback.print_exc()
         return 1
@@ -361,3 +382,45 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+
+def show_current_config():
+    """Show current configuration"""
+    try:
+        config_loader = get_config_loader()
+        config = config_loader.config
+
+        print("⚙️ Current Doc2Train Configuration:")
+        print("=" * 50)
+        print(f"Mode: {config.get('mode')}")
+        print(f"Output: {config.get('output_dir')} ({config.get('output_format')})")
+
+        processing = config.get('processing', {})
+        async_mode = "Async" if processing.get('use_async') else "Sync"
+        print(f"Processing: {async_mode}, {processing.get('threads')} threads")
+
+        if processing.get('use_async'):
+            llm = config.get('llm', {})
+            print(f"LLM: {llm.get('provider')} ({llm.get('max_concurrent_calls')} concurrent calls)")
+
+        generation = config.get('generation', {})
+        print(f"Generators: {', '.join(generation.get('types', []))}")
+
+        prompts = config.get('prompts', {})
+        print(f"Prompt style: {prompts.get('style')}")
+
+        print("\n💡 Edit config.yaml to customize these settings")
+
+    except Exception as e:
+        print(f"❌ Error loading config: {e}")
+
+def save_config_from_args(args):
+    """Save current arguments to config file"""
+    try:
+        config_loader = get_config_loader()
+        config_loader.update_from_args(args)
+        config_loader.save_config()
+        print(f"✅ Configuration saved to {config_loader.config_file}")
+        print("💡 You can now run without these arguments!")
+    except Exception as e:
+        print(f"❌ Error saving config: {e}")

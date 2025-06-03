@@ -2,14 +2,17 @@
 """
 Simple training data generator - creates AI training data from extracted content
 Supports multiple output types: conversations, embeddings, Q&A, summaries
+Now with async LLM calls for faster processing
 """
 
 import json
 import os
-from typing import Dict, List, Any, Optional  # Added this line
+from typing import Dict, List, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from config.settings import *
 
-def generate_training_data(text: str, generators: List[str] = None, images: List[Dict] = None) -> Dict[str, List]:
+def generate_training_data(text: str, generators: List[str] = None, images: List[Dict] = None,
+                         custom_prompts: Dict[str, str] = None, use_async: bool = True) -> Dict[str, List]:
     """
     Generate training data from extracted content
 
@@ -17,6 +20,8 @@ def generate_training_data(text: str, generators: List[str] = None, images: List
         text: Extracted text content
         generators: List of generators to use (conversations, embeddings, qa_pairs, summaries)
         images: Optional list of images to process
+        custom_prompts: Optional custom prompts for generators
+        use_async: Use async processing for faster generation
 
     Returns:
         Dictionary with generated training data by type
@@ -24,31 +29,20 @@ def generate_training_data(text: str, generators: List[str] = None, images: List
     if not generators:
         generators = DEFAULT_GENERATORS
 
+    # Use custom prompts if provided, otherwise use defaults
+    prompts = custom_prompts or get_default_prompts()
+
     results = {}
 
     # Process text with each requested generator
-    for generator_type in generators:
-        if generator_type not in GENERATORS:
-            print(f"⚠️  Unknown generator: {generator_type}")
-            continue
+    if generators:
+        if use_async:
+            text_results = _generate_text_data_async(text, generators, prompts)
+        else:
+            text_results = _generate_text_data_sync(text, generators, prompts)
 
-        try:
-            print(f"🤖 Generating {generator_type}...")
-
-            if generator_type == 'conversations':
-                results[generator_type] = _generate_conversations(text)
-            elif generator_type == 'embeddings':
-                results[generator_type] = _generate_embeddings(text)
-            elif generator_type == 'qa_pairs':
-                results[generator_type] = _generate_qa_pairs(text)
-            elif generator_type == 'summaries':
-                results[generator_type] = _generate_summaries(text)
-
-            print(f"✅ Generated {len(results[generator_type])} {generator_type}")
-
-        except Exception as e:
-            print(f"❌ Error generating {generator_type}: {e}")
-            results[generator_type] = []
+        if text_results:
+            results.update(text_results)
 
     # Process images if provided and requested
     if images and EXTRACT_IMAGES:
@@ -61,14 +55,181 @@ def generate_training_data(text: str, generators: List[str] = None, images: List
 
     return results
 
+def _generate_text_data_async(text: str, generators: List[str], prompts: Dict[str, str]) -> Dict[str, List]:
+    """Generate text data using async LLM calls for speed"""
+    from core.extractor import chunk_text
+
+    chunks = chunk_text(text)
+    if TEST_MODE:
+        chunks = chunks[:TEST_MAX_CHUNKS]
+
+    results = {gen: [] for gen in generators}
+
+    # Use ThreadPoolExecutor for parallel LLM calls
+    max_workers = min(8, len(generators) * len(chunks))  # Limit concurrent API calls
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all generation tasks
+        future_to_task = {}
+
+        for generator_type in generators:
+            if generator_type not in GENERATORS:
+                print(f"⚠️ Unknown generator: {generator_type}")
+                continue
+
+            for i, chunk in enumerate(chunks):
+                future = executor.submit(_generate_single_type, chunk, generator_type, prompts.get(generator_type, ''))
+                future_to_task[future] = (generator_type, i)
+
+        # Collect results as they complete
+        for future in as_completed(future_to_task):
+            generator_type, chunk_index = future_to_task[future]
+
+            try:
+                generated_items = future.result()
+                if generated_items:
+                    results[generator_type].extend(generated_items)
+
+            except Exception as e:
+                if DEBUG:
+                    print(f"Error generating {generator_type} for chunk {chunk_index}: {e}")
+
+    # Print results
+    for generator_type in generators:
+        if results[generator_type]:
+            print(f"✅ Generated {len(results[generator_type])} {generator_type}")
+
+    return results
+
+def _generate_text_data_sync(text: str, generators: List[str], prompts: Dict[str, str]) -> Dict[str, List]:
+    """Generate text data using synchronous LLM calls (original method)"""
+    from core.extractor import chunk_text
+
+    chunks = chunk_text(text)
+    if TEST_MODE:
+        chunks = chunks[:TEST_MAX_CHUNKS]
+
+    results = {gen: [] for gen in generators}
+
+    # Process generators sequentially
+    for generator_type in generators:
+        if generator_type not in GENERATORS:
+            print(f"⚠️ Unknown generator: {generator_type}")
+            continue
+
+        for i, chunk in enumerate(chunks):
+            generated_items = _generate_single_type(chunk, generator_type, prompts.get(generator_type, ''))
+            if generated_items:
+                results[generator_type].extend(generated_items)
+
+        if results[generator_type]:
+            print(f"✅ Generated {len(results[generator_type])} {generator_type}")
+
+    return results
+
+def _generate_single_type(chunk: str, generator_type: str, prompt_template: str) -> List[Dict]:
+    """Generate single type of training data for a chunk"""
+    from core.llm_client import call_llm
+
+    # Build prompt dynamically
+    prompt = _build_prompt(chunk, generator_type, prompt_template)
+
+    try:
+        response = call_llm(prompt, task=generator_type)
+        parsed = _parse_json_response(response)
+
+        if parsed:
+            # Extract the appropriate data based on generator type
+            if generator_type == 'conversations' and 'conversations' in parsed:
+                return parsed['conversations']
+            elif generator_type == 'embeddings' and 'pairs' in parsed:
+                return parsed['pairs']
+            elif generator_type == 'qa_pairs' and 'qa_pairs' in parsed:
+                return parsed['qa_pairs']
+            elif generator_type == 'summaries' and 'summary' in parsed:
+                return [{'summary': parsed['summary'], 'original_text': chunk[:200] + "..."}]
+
+    except Exception as e:
+        if DEBUG:
+            print(f"Error generating {generator_type}: {e}")
+
+    return []
+
+def _build_prompt(chunk: str, generator_type: str, prompt_template: str) -> str:
+    """Build dynamic prompt with templates"""
+
+    # Default templates if none provided
+    if not prompt_template:
+        prompt_template = get_default_prompts().get(generator_type, '')
+
+    # Format templates for each generator type
+    if generator_type == 'conversations':
+        format_example = '''{{"conversations": [
+    {{"messages": [
+        {{"role": "user", "content": "user question"}},
+        {{"role": "assistant", "content": "AI response"}}
+    ]}},
+    {{"messages": [
+        {{"role": "user", "content": "follow-up question"}},
+        {{"role": "assistant", "content": "AI response"}}
+    ]}}
+]}}'''
+
+    elif generator_type == 'qa_pairs':
+        format_example = '''{{"qa_pairs": [
+    {{"question": "What is...", "answer": "Complete answer based on content"}},
+    {{"question": "How does...", "answer": "Detailed explanation"}}
+]}}'''
+
+    elif generator_type == 'embeddings':
+        format_example = '''{{"pairs": [
+    {{"sentence1": "first sentence", "sentence2": "similar meaning sentence", "similarity": 0.9}},
+    {{"sentence1": "different sentence", "sentence2": "unrelated sentence", "similarity": 0.1}}
+]}}'''
+
+    elif generator_type == 'summaries':
+        format_example = '''{{"summary": "Your concise summary here"}}'''
+
+    else:
+        format_example = '{{"data": "generated content"}}'
+
+    # Build the complete prompt
+    full_prompt = f"""{prompt_template}
+
+Content:
+{chunk}
+
+Format your response as JSON:
+{format_example}
+"""
+
+    return full_prompt
+
+def get_default_prompts() -> Dict[str, str]:
+    """Get default prompts (can be overridden)"""
+    return {
+        'conversations': "Based on this content, create a natural multi-turn conversation between a user and an AI assistant. Make it educational and engaging. Include 3-4 exchanges (user question -> AI response).",
+
+        'qa_pairs': "Create specific questions that can be answered from this content. Make sure answers are complete and accurate.",
+
+        'embeddings': "From this content, create pairs of sentences that have similar meanings but different wording. Also create some pairs with different meanings for contrast.",
+
+        'summaries': "Create a concise summary of this content, highlighting the key points.",
+
+        'image_descriptions': "Describe this image in detail. What do you see? What might this image be used to illustrate or explain? If there's text in the image, include it in your description."
+    }
+
+def set_custom_prompts(custom_prompts: Dict[str, str]):
+    """Set custom prompts globally"""
+    global SYSTEM_PROMPTS
+    SYSTEM_PROMPTS.update(custom_prompts)
+
 def _generate_conversations(text: str) -> List[Dict]:
     """Generate conversational training data"""
     from core.llm_client import call_llm
-
-    # Split text into chunks for processing
     from core.extractor import chunk_text
-    chunks = chunk_text(text)
 
+    chunks = chunk_text(text)
     conversations = []
 
     for i, chunk in enumerate(chunks):
@@ -303,15 +464,7 @@ def _parse_json_response(response: str) -> Optional[Dict]:
     return None
 
 def validate_generated_data(data: Dict[str, List]) -> Dict[str, int]:
-    """
-    Validate generated training data quality
-
-    Args:
-        data: Generated training data
-
-    Returns:
-        Dictionary with quality metrics
-    """
+    """Validate generated training data quality"""
     metrics = {}
 
     for data_type, items in data.items():
@@ -334,15 +487,13 @@ def _is_valid_item(item: Dict, data_type: str) -> bool:
     """Check if a generated item meets quality requirements"""
 
     if data_type == 'conversations':
-        # Check conversation format
         if 'messages' not in item:
             return False
 
         messages = item['messages']
-        if len(messages) < 2:  # At least user + assistant
+        if len(messages) < 2:
             return False
 
-        # Check message quality
         for msg in messages:
             if not msg.get('content') or len(msg['content'].strip()) < 10:
                 return False
@@ -350,17 +501,14 @@ def _is_valid_item(item: Dict, data_type: str) -> bool:
         return True
 
     elif data_type == 'embeddings':
-        # Check embedding pair format
         required_fields = ['sentence1', 'sentence2', 'similarity']
         if not all(field in item for field in required_fields):
             return False
 
-        # Check similarity score
         similarity = item.get('similarity', 0)
         if not isinstance(similarity, (int, float)) or similarity < 0 or similarity > 1:
             return False
 
-        # Check sentence quality
         for field in ['sentence1', 'sentence2']:
             if len(item[field].strip()) < 5:
                 return False
@@ -368,33 +516,27 @@ def _is_valid_item(item: Dict, data_type: str) -> bool:
         return True
 
     elif data_type == 'qa_pairs':
-        # Check Q&A format
         if 'question' not in item or 'answer' not in item:
             return False
 
-        # Check content quality
         if len(item['question'].strip()) < 5 or len(item['answer'].strip()) < 10:
             return False
 
         return True
 
     elif data_type == 'summaries':
-        # Check summary format
         if 'summary' not in item:
             return False
 
-        # Check summary quality
         if len(item['summary'].strip()) < 20:
             return False
 
         return True
 
     elif data_type == 'image_descriptions':
-        # Check image description format
         if 'description' not in item:
             return False
 
-        # Check description quality
         if len(item['description'].strip()) < 10:
             return False
 
@@ -403,16 +545,7 @@ def _is_valid_item(item: Dict, data_type: str) -> bool:
     return False
 
 def filter_by_quality(data: Dict[str, List], threshold: float = QUALITY_THRESHOLD) -> Dict[str, List]:
-    """
-    Filter generated data by quality threshold
-
-    Args:
-        data: Generated training data
-        threshold: Quality threshold (0.0 to 1.0)
-
-    Returns:
-        Filtered data meeting quality requirements
-    """
+    """Filter generated data by quality threshold"""
     filtered_data = {}
 
     for data_type, items in data.items():
@@ -422,7 +555,6 @@ def filter_by_quality(data: Dict[str, List], threshold: float = QUALITY_THRESHOL
             if _is_valid_item(item, data_type):
                 valid_items.append(item)
 
-        # Calculate quality score
         quality_score = len(valid_items) / len(items) if items else 0
 
         if quality_score >= threshold:
@@ -431,22 +563,12 @@ def filter_by_quality(data: Dict[str, List], threshold: float = QUALITY_THRESHOL
                 print(f"✅ {data_type}: {len(valid_items)}/{len(items)} items passed quality check")
         else:
             if VERBOSE:
-                print(f"⚠️  {data_type}: Quality too low ({quality_score:.2f} < {threshold})")
+                print(f"⚠️ {data_type}: Quality too low ({quality_score:.2f} < {threshold})")
 
     return filtered_data
 
 def estimate_cost(text: str, generators: List[str], images: List[Dict] = None) -> Dict[str, float]:
-    """
-    Estimate processing costs for different providers
-
-    Args:
-        text: Text content to process
-        generators: List of generators to use
-        images: Optional images to process
-
-    Returns:
-        Dictionary with cost estimates by provider
-    """
+    """Estimate processing costs for different providers"""
     from core.extractor import count_tokens_estimate
 
     # Rough token estimates
@@ -483,16 +605,7 @@ def estimate_cost(text: str, generators: List[str], images: List[Dict] = None) -
 
 # Batch processing functions
 def generate_batch(file_data: Dict[str, tuple], generators: List[str] = None) -> Dict[str, Dict]:
-    """
-    Generate training data for multiple files
-
-    Args:
-        file_data: Dictionary mapping file paths to (text, images) tuples
-        generators: List of generators to use
-
-    Returns:
-        Dictionary mapping file paths to generated training data
-    """
+    """Generate training data for multiple files"""
     results = {}
 
     for file_path, (text, images) in file_data.items():
@@ -515,15 +628,7 @@ def generate_batch(file_data: Dict[str, tuple], generators: List[str] = None) ->
 
 # Utility functions for working with generated data
 def merge_generated_data(data_list: List[Dict]) -> Dict[str, List]:
-    """
-    Merge generated data from multiple sources
-
-    Args:
-        data_list: List of generated data dictionaries
-
-    Returns:
-        Merged data dictionary
-    """
+    """Merge generated data from multiple sources"""
     merged = {}
 
     for data in data_list:
@@ -535,16 +640,7 @@ def merge_generated_data(data_list: List[Dict]) -> Dict[str, List]:
     return merged
 
 def sample_data(data: Dict[str, List], sample_size: int = 10) -> Dict[str, List]:
-    """
-    Sample a subset of generated data for review
-
-    Args:
-        data: Generated training data
-        sample_size: Number of items to sample from each type
-
-    Returns:
-        Sampled data dictionary
-    """
+    """Sample a subset of generated data for review"""
     import random
 
     sampled = {}
@@ -558,15 +654,7 @@ def sample_data(data: Dict[str, List], sample_size: int = 10) -> Dict[str, List]
     return sampled
 
 def get_data_stats(data: Dict[str, List]) -> Dict[str, Dict]:
-    """
-    Get statistics about generated data
-
-    Args:
-        data: Generated training data
-
-    Returns:
-        Statistics dictionary
-    """
+    """Get statistics about generated data"""
     stats = {}
 
     for data_type, items in data.items():

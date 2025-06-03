@@ -105,24 +105,9 @@ class ProcessingPipeline:
                 'config_used': self.config
             }
 
-
-            # Add this before calculating final_results
-            if self.stats['files_successful'] > 0:
-                try:
-                    # Save extraction results if we have any
-                    if hasattr(self, '_extracted_results'):
-                        self.output_writer.save_extraction_results({
-                            'mode': self.config['mode'],
-                            'extracted_data': self._extracted_results,
-                            'files_processed': self.stats['files_total'],
-                            'successful': self.stats['files_successful'],
-                            'config_used': self.config
-                        })
-                    print(f"💾 Results saved to: {self.config['output_dir']}")
-                except Exception as e:
-                    print(f"⚠️ Error saving results: {e}")
             # Show completion summary
             show_completion_summary(self.config)
+
             try:
                 self.cleanup_after_processing()
             except Exception as e:
@@ -175,14 +160,31 @@ class ProcessingPipeline:
         """Resume processing from checkpoint"""
         print("🔄 Resume mode: Continuing from previous session...")
 
-        # Load previous state if resume file exists
-        if self.config.get('resume_from'):
-            processed_files = self._load_resume_state()
-            remaining_files = [f for f in file_paths if f not in processed_files]
-            print(f"📄 Resuming: {len(remaining_files)} files remaining")
-            file_paths = remaining_files
+        # NEW: Check if we have extracted data to work with
+        extracted_results = {}
 
-        # Process remaining files
+        # Try to load from extraction cache or previous results
+        for file_path in file_paths:
+            try:
+                processor = get_processor_for_file(file_path, self.config)
+
+                # Check if we have cached extraction results
+                cached_result = processor._load_from_cache(file_path)
+                if cached_result:
+                    extracted_results[file_path] = (cached_result['text'], cached_result['images'])
+                else:
+                    # If no cache, extract again
+                    text, images = processor.extract_content(file_path, self.config.get('use_cache', True))
+                    extracted_results[file_path] = (text, images)
+
+            except Exception as e:
+                print(f"⚠️ Error loading {file_path}: {e}")
+                continue
+
+        # Store extracted results for output writer
+        self._extracted_results = extracted_results
+
+        # Now generate training data from extracted content
         return self._process_with_generation(file_paths)
 
     def _process_files_parallel(self, file_paths: List[str], process_func) -> Dict[str, Any]:
@@ -203,18 +205,15 @@ class ProcessingPipeline:
                     result = future.result()
                     self._update_stats(result)
 
-                    # Save per-file if requested
-                    if self.config.get('save_per_file') and result['success']:
-                        self._save_per_file_result(file_path, result)
+                    # NEW: Save immediately after each file is processed
+                    if result['success']:
+                        self._save_file_result_immediately(file_path, result)
 
-                    # NEW: Force progress display update
-                    from utils.progress import update_progress_display
+                    # Force progress display update
                     update_progress_display()
 
                 except Exception as e:
                     self._handle_file_error(file_path, str(e))
-                    # NEW: Update progress even on error
-                    from utils.progress import update_progress_display
                     update_progress_display()
 
         return {'parallel_processing': True}
@@ -226,18 +225,15 @@ class ProcessingPipeline:
                 result = process_func(file_path)
                 self._update_stats(result)
 
-                # Save per-file if requested
-                if self.config.get('save_per_file') and result['success']:
-                    self._save_per_file_result(file_path, result)
+                # NEW: Save immediately after each file is processed
+                if result['success']:
+                    self._save_file_result_immediately(file_path, result)
 
-                # NEW: Force progress display update
-                from utils.progress import update_progress_display
+                # Force progress display update
                 update_progress_display()
 
             except Exception as e:
                 self._handle_file_error(file_path, str(e))
-                # NEW: Update progress even on error
-                from utils.progress import update_progress_display
                 update_progress_display()
 
         return {'sequential_processing': True}
@@ -268,10 +264,6 @@ class ProcessingPipeline:
                 'processor': processor.processor_name
             }
 
-            if not hasattr(self, '_extracted_results'):
-                self._extracted_results = {}
-            if result['success']:
-                self._extracted_results[file_path] = (result['text'], result['images'])
             return result
 
         except Exception as e:
@@ -302,14 +294,18 @@ class ProcessingPipeline:
                 extract_result['generated_data'] = {}
                 return extract_result
 
-            # Generate training data
+            # Generate training data with custom prompts and async option
             generators = self.config.get('generators', ['conversations'])
             include_vision = self.config.get('include_vision', False)
+            custom_prompts = self.config.get('custom_prompts', None)
+            use_async = self.config.get('use_async', True)  # NEW: Async option
 
             generated_data = generate_training_data(
                 text,
                 generators=generators,
-                images=images if include_vision else None
+                images=images if include_vision else None,
+                custom_prompts=custom_prompts,
+                use_async=use_async  # NEW: Pass async option
             )
 
             extract_result['generated_data'] = generated_data
@@ -321,6 +317,53 @@ class ProcessingPipeline:
             extract_result['generation_error'] = str(e)
             extract_result['generation_successful'] = False
             return extract_result
+
+    def _save_file_result_immediately(self, file_path: str, result: Dict[str, Any]):
+        """NEW: Save file result immediately using OutputWriter"""
+        try:
+            # NEW: Use the existing OutputWriter for proper saving
+            if result.get('text') and result.get('generated_data'):
+                # Save both extraction and generation data
+                file_results = {
+                    file_path: result['generated_data']
+                }
+                self.output_writer.save_generated_data(file_results)
+            elif result.get('text'):
+                # Save only extraction data
+                extraction_results = {
+                    'mode': self.config['mode'],
+                    'extracted_data': {file_path: (result['text'], result.get('images', []))},
+                    'files_processed': 1,
+                    'successful': 1,
+                    'config_used': self.config
+                }
+                self.output_writer.save_extraction_results(extraction_results)
+
+        except Exception as e:
+            print(f"⚠️ Error saving immediate results for {Path(file_path).name}: {e}")
+
+    def _update_stats(self, result: Dict[str, Any]):
+        """Update processing statistics"""
+        if result['success']:
+            self.stats['files_successful'] += 1
+            self.stats['total_text_chars'] += result.get('text_chars', 0)
+            self.stats['total_images'] += result.get('image_count', 0)
+        else:
+            self.stats['files_failed'] += 1
+            self.stats['errors'].append({
+                'file': result.get('file_name', 'unknown'),
+                'error': result.get('error', 'Unknown error')
+            })
+
+    def _handle_file_error(self, file_path: str, error: str):
+        """Handle file processing error"""
+        file_name = Path(file_path).name
+        self.stats['files_failed'] += 1
+        self.stats['errors'].append({
+            'file': file_name,
+            'error': error
+        })
+        add_processing_error(file_name, error)
 
     def _save_per_file_result(self, file_path: str, result: Dict[str, Any]):
         """Save individual file result immediately (fault-tolerant)"""
@@ -359,29 +402,6 @@ class ProcessingPipeline:
 
         except Exception as e:
             print(f"⚠️ Error saving per-file result for {result['file_name']}: {e}")
-
-    def _update_stats(self, result: Dict[str, Any]):
-        """Update processing statistics"""
-        if result['success']:
-            self.stats['files_successful'] += 1
-            self.stats['total_text_chars'] += result.get('text_chars', 0)
-            self.stats['total_images'] += result.get('image_count', 0)
-        else:
-            self.stats['files_failed'] += 1
-            self.stats['errors'].append({
-                'file': result['file_name'],
-                'error': result.get('error', 'Unknown error')
-            })
-
-    def _handle_file_error(self, file_path: str, error: str):
-        """Handle file processing error"""
-        file_name = Path(file_path).name
-        self.stats['files_failed'] += 1
-        self.stats['errors'].append({
-            'file': file_name,
-            'error': error
-        })
-        add_processing_error(file_name, error)
 
     def _load_resume_state(self) -> List[str]:
         """Load resume state from checkpoint file"""
@@ -446,6 +466,7 @@ class ProcessingPipeline:
                 print(f"❌ Cache cleanup error: {e}")
                 import traceback
                 traceback.print_exc()
+
 
 class PerformanceBenchmark:
     """Performance benchmarking for the processing pipeline"""

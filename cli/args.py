@@ -151,6 +151,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         help='Disable smart PDF analysis (use basic extraction)'
     )
 
+
     # Configuration overrides
     config_group = parser.add_argument_group('⚙️ Configuration')
     config_group.add_argument(
@@ -180,6 +181,43 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         '--model',
         type=str,
         help='Specific model to use (e.g., gpt-4o-mini, deepseek-r1)'
+    )
+
+    config_group = parser.add_argument_group('📁 Configuration')
+    config_group.add_argument(
+        '--config-file',
+        default='config.yaml',
+        help='YAML configuration file (default: config.yaml)'
+    )
+
+    config_group.add_argument(
+        '--sync',
+        action='store_true',
+        help='Use synchronous LLM processing (slower but more stable)'
+    )
+
+    config_group.add_argument(
+        '--async-calls',
+        type=int,
+        help='Number of concurrent async LLM calls (default: 5)'
+    )
+
+    config_group.add_argument(
+        '--prompt-style',
+        choices=['default', 'detailed', 'concise', 'academic', 'casual', 'creative', 'professional'],
+        help='Prompt style (overrides config.yaml)'
+    )
+
+    config_group.add_argument(
+        '--show-config',
+        action='store_true',
+        help='Show current configuration and exit'
+    )
+
+    config_group.add_argument(
+        '--save-config',
+        action='store_true',
+        help='Save current settings to config.yaml and exit'
     )
 
     # Output options
@@ -401,6 +439,12 @@ def args_to_config(args) -> Dict[str, Any]:
         'fail_on_error': not args.save_per_file,  # More tolerant with per-file saving
         'allow_low_quality': args.test_mode,      # More lenient in test mode
         'clear_cache_after_run': args.clear_cache_after if hasattr(args, 'clear_cache_after') else False,
+        # NEW: Async/sync control
+        'use_async': not getattr(args, 'sync', False),  # Default async unless --sync
+        'max_concurrent_calls': getattr(args, 'async_calls', 5),
+
+        # NEW: Custom prompts from style
+        'custom_prompts': _get_prompts_for_style(getattr(args, 'prompt_style', 'default')),
     }
 
     return config
@@ -571,3 +615,177 @@ def validate_args_enhanced(args) -> bool:
         raise ValueError(error_msg)
 
     return True
+
+
+def create_simplified_parser() -> argparse.ArgumentParser:
+    """Create simplified argument parser (most config now in YAML)"""
+    parser = argparse.ArgumentParser(
+        description="Doc2Train v2.0 Enhanced - Enterprise document processing with YAML config",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=get_simplified_examples()
+    )
+
+    # Required arguments
+    parser.add_argument(
+        'input_path',
+        help='File or directory to process'
+    )
+
+    # Core overrides (most common)
+    parser.add_argument(
+        '--config',
+        default='config.yaml',
+        help='Configuration file (default: config.yaml)'
+    )
+
+    parser.add_argument(
+        '--mode',
+        choices=['extract-only', 'generate', 'full', 'resume', 'analyze'],
+        help='Processing mode (overrides config.yaml)'
+    )
+
+    parser.add_argument(
+        '--sync',
+        action='store_true',
+        help='Use synchronous processing instead of async (slower but more stable)'
+    )
+
+    parser.add_argument(
+        '--async-calls',
+        type=int,
+        help='Number of concurrent async LLM calls (default: 5)'
+    )
+
+    # Quick overrides
+    parser.add_argument(
+        '--output-dir',
+        help='Output directory (overrides config)'
+    )
+
+    parser.add_argument(
+        '--threads',
+        type=int,
+        help='Number of threads (overrides config)'
+    )
+
+    parser.add_argument(
+        '--test-mode',
+        action='store_true',
+        help='Process only 3 files for testing'
+    )
+
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='Enable verbose output'
+    )
+
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Show what would be processed without actually processing'
+    )
+
+    parser.add_argument(
+        '--provider',
+        choices=['openai', 'deepseek', 'local'],
+        help='LLM provider (overrides config)'
+    )
+
+    parser.add_argument(
+        '--prompt-style',
+        choices=['default', 'detailed', 'concise', 'academic', 'casual', 'creative', 'professional'],
+        help='Prompt style (overrides config)'
+    )
+
+    # Config management
+    parser.add_argument(
+        '--save-config',
+        action='store_true',
+        help='Save current settings to config.yaml and exit'
+    )
+
+    parser.add_argument(
+        '--show-config',
+        action='store_true',
+        help='Show current configuration and exit'
+    )
+
+    return parser
+
+def get_simplified_examples() -> str:
+    """Get simplified CLI examples with YAML config"""
+    return """
+🚀 Doc2Train v2.0 Enhanced - YAML Configuration Examples:
+
+BASIC USAGE (uses config.yaml):
+  python main.py documents/                    # Use all settings from config.yaml
+  python main.py documents/ --mode generate   # Override mode only
+  python main.py documents/ --sync            # Use sync instead of async
+
+QUICK OVERRIDES:
+  python main.py documents/ --threads 8 --verbose
+  python main.py documents/ --provider deepseek --async-calls 10
+  python main.py documents/ --prompt-style creative --test-mode
+
+CONFIG MANAGEMENT:
+  python main.py --show-config                # Show current config
+  python main.py documents/ --save-config     # Save current args to config.yaml
+
+ASYNC CONTROL:
+  python main.py documents/                   # Uses async (default, faster)
+  python main.py documents/ --sync            # Uses sync (slower, more stable)
+  python main.py documents/ --async-calls 3   # Limit concurrent API calls
+
+EXAMPLES WITH DIFFERENT CONFIGS:
+  python main.py documents/ --config my-config.yaml
+  python main.py documents/ --config research.yaml --mode full
+
+💡 Edit config.yaml to customize:
+   - Prompts and styles
+   - API keys and providers
+   - Quality thresholds
+   - Output formats
+   - Much more!
+    """
+
+def _get_prompts_for_style(style: str) -> Dict[str, str]:
+    """Get prompts for a specific style"""
+    styles = {
+        'detailed': {
+            'conversations': "Create comprehensive, detailed conversations with thorough explanations and multiple follow-up questions based on this content.",
+            'qa_pairs': "Generate detailed questions with comprehensive, well-explained answers based on this content.",
+            'summaries': "Create detailed summaries that cover all important aspects thoroughly based on this content."
+        },
+        'concise': {
+            'conversations': "Create brief, focused conversations that get straight to the point based on this content.",
+            'qa_pairs': "Generate clear, direct questions with concise but complete answers based on this content.",
+            'summaries': "Create brief summaries focusing only on the most essential points from this content."
+        },
+        'academic': {
+            'conversations': "Create scholarly conversations with proper academic discourse based on this content.",
+            'qa_pairs': "Generate academic-style questions with evidence-based, well-researched answers based on this content.",
+            'summaries': "Create academic summaries with proper structure and formal language based on this content."
+        },
+        'casual': {
+            'conversations': "Create friendly, casual conversations using everyday language based on this content.",
+            'qa_pairs': "Generate approachable questions with easy-to-understand answers based on this content.",
+            'summaries': "Create informal summaries using simple, conversational language based on this content."
+        },
+        'creative': {
+            'conversations': "Create imaginative conversations using analogies, stories, and creative examples based on this content.",
+            'qa_pairs': "Generate creative questions that encourage thinking outside the box based on this content.",
+            'summaries': "Create engaging summaries with creative language and interesting perspectives based on this content."
+        },
+        'professional': {
+            'conversations': "Create professional discussions with industry-specific terminology based on this content.",
+            'qa_pairs': "Generate professional-level questions with expert insights based on this content.",
+            'summaries': "Create business-focused summaries with actionable insights based on this content."
+        }
+    }
+
+    return styles.get(style, {
+        'conversations': "Create a natural conversation between a user and an AI assistant based on this content.",
+        'qa_pairs': "Generate questions and answers based on this content.",
+        'summaries': "Create a summary of this content."
+    })
