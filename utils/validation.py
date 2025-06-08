@@ -48,9 +48,9 @@ def validate_input_enhanced(args) -> bool:
 
     # Check disk space
     if output_dir.exists():
-        free_space_gb = get_free_disk_space(str(output_dir)) / (1024**3)
-        if free_space_gb < 1.0:  # Less than 1GB free
-            warnings.append(f"Low disk space: {free_space_gb:.1f}GB available")
+        free_space_in_gigabytes = get_free_disk_space(str(output_dir)) / (1024**3)
+        if free_space_in_gigabytes < 1.0:  # Less than 1GB free
+            warnings.append(f"Low disk space: {free_space_in_gigabytes:.1f}GB available")
 
     # Validate LLM requirements for generation modes
     if args.mode in ['generate', 'full']:
@@ -213,7 +213,7 @@ def validate_image_quality(image: Dict, config: Dict) -> bool:
         return False
 
     # Single color validation
-    if config.get('skip_single_color') and image.get('is_single_color', False):
+    if config.get('skip_single_color_images') and image.get('is_single_color', False):
         return False
 
     return True
@@ -422,23 +422,23 @@ def validate_system_requirements() -> Dict[str, Any]:
     # Check available memory
     try:
         import psutil
-        memory_gb = psutil.virtual_memory().total / (1024**3)
-        if memory_gb < 2:
+        memory_in_gigabytes = psutil.virtual_memory().total / (1024**3)
+        if memory_in_gigabytes < 2:
             results['memory'] = False
-            results['errors'].append(f"Insufficient memory: {memory_gb:.1f}GB (minimum 2GB)")
-        elif memory_gb < 4:
-            results['warnings'].append(f"Low memory: {memory_gb:.1f}GB (recommended 4GB+)")
+            results['errors'].append(f"Insufficient memory: {memory_in_gigabytes:.1f}GB (minimum 2GB)")
+        elif memory_in_gigabytes < 4:
+            results['warnings'].append(f"Low memory: {memory_in_gigabytes:.1f}GB (recommended 4GB+)")
     except ImportError:
         results['warnings'].append("Cannot check memory (psutil not installed)")
 
     # Check disk space
     try:
-        free_space_gb = get_free_disk_space('.') / (1024**3)
-        if free_space_gb < 1:
+        free_space_in_gigabytes = get_free_disk_space('.') / (1024**3)
+        if free_space_in_gigabytes < 1:
             results['disk_space'] = False
-            results['errors'].append(f"Insufficient disk space: {free_space_gb:.1f}GB (minimum 1GB)")
-        elif free_space_gb < 5:
-            results['warnings'].append(f"Low disk space: {free_space_gb:.1f}GB (recommended 5GB+)")
+            results['errors'].append(f"Insufficient disk space: {free_space_in_gigabytes:.1f}GB (minimum 1GB)")
+        elif free_space_in_gigabytes < 5:
+            results['warnings'].append(f"Low disk space: {free_space_in_gigabytes:.1f}GB (recommended 5GB+)")
     except:
         results['warnings'].append("Cannot check disk space")
 
@@ -499,17 +499,17 @@ def validate_and_report_system() -> bool:
     # Print memory info
     try:
         import psutil
-        memory_gb = psutil.virtual_memory().total / (1024**3)
+        memory_in_gigabytes = psutil.virtual_memory().total / (1024**3)
         status = "✅" if results['memory'] else "❌"
-        print(f"{status} Available Memory: {memory_gb:.1f} GB")
+        print(f"{status} Available Memory: {memory_in_gigabytes:.1f} GB")
     except ImportError:
         print("⚠️ Memory: Cannot check (psutil not available)")
 
     # Print disk space
     try:
-        free_space_gb = get_free_disk_space('.') / (1024**3)
+        free_space_in_gigabytes = get_free_disk_space('.') / (1024**3)
         status = "✅" if results['disk_space'] else "❌"
-        print(f"{status} Free Disk Space: {free_space_gb:.1f} GB")
+        print(f"{status} Free Disk Space: {free_space_in_gigabytes:.1f} GB")
     except:
         print("⚠️ Disk Space: Cannot check")
 

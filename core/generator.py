@@ -621,6 +621,7 @@ def generate_batch(file_data: Dict[str, tuple], generators: List[str] = None) ->
             results[file_path] = filtered_data
 
         except Exception as e:
+
             print(f"❌ Error processing {file_path}: {e}")
             results[file_path] = {}
 

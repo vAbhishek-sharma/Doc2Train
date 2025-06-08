@@ -61,7 +61,7 @@ class ImageProcessor(BaseProcessor):
                 return "", []
 
             # Check for single color if enabled
-            if self.config.get('skip_single_color', False) and self._is_single_color(image):
+            if self.config.get('skip_single_color_images', False) and self._is_single_color(image):
                 if self.config.get('verbose'):
                     print(f"⏭️ Skipping single-color image")
                 return "", []

@@ -17,6 +17,11 @@ processing:
   max_file_size: "100MB"
   use_cache: true
   save_per_file: false  # Save each file immediately after processing
+  # NEW: Auto-stop features
+  auto_stop_on_quota_exceeded: true  # Stop when API quota is hit
+  auto_stop_on_consecutive_failures: 3  # Stop after N consecutive failures
+  auto_stop_after_time: null  # Stop after X minutes (null = no limit)
+  auto_stop_after_files: null  # Stop after N files (null = no limit)
 
 # Page Control (for PDFs)
 pages:
@@ -28,7 +33,7 @@ pages:
 quality:
   min_image_size: 1000  # pixels
   min_text_length: 100  # characters
-  skip_single_color: false
+  skip_single_color_images: false
   header_regex: ""  # Regex to remove headers/footers
   quality_threshold: 0.7  # 0.0 to 1.0
 

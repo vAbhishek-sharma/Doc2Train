@@ -229,8 +229,8 @@ def execute_info_command(args) -> Dict[str, Any]:
 
     try:
         import psutil
-        memory_gb = psutil.virtual_memory().total / (1024**3)
-        print(f"   Available memory: {memory_gb:.1f} GB")
+        memory_in_gigabytes = psutil.virtual_memory().total / (1024**3)
+        print(f"   Available memory: {memory_in_gigabytes:.1f} GB")
     except ImportError:
         print(f"   Memory: Unable to detect")
 
@@ -425,3 +425,131 @@ def format_command_results(results: Dict[str, Any]) -> str:
 
     else:
         return f"✅ Command '{command}' completed successfully"
+
+
+def execute_list_providers_command() -> Dict[str, Any]:
+    """List all available LLM providers"""
+    print("🤖 Available LLM Providers:")
+
+    try:
+        from core.llm_client import get_available_providers, get_provider_capabilities
+
+        providers = get_available_providers()
+
+        builtin_providers = ['openai', 'deepseek', 'local']
+        plugin_providers = [p for p in providers if p not in builtin_providers]
+
+        # Show builtin providers
+        if any(p in providers for p in builtin_providers):
+            print("\n📦 Built-in Providers:")
+            for provider in builtin_providers:
+                if provider in providers:
+                    caps = get_provider_capabilities(provider)
+                    cap_list = []
+                    if caps.get('text'): cap_list.append('text')
+                    if caps.get('vision'): cap_list.append('vision')
+
+                    # Check if configured
+                    from config.settings import LLM_PROVIDERS
+                    config = LLM_PROVIDERS.get(provider, {})
+                    status = "✅" if config.get('api_key') else "❌"
+
+                    print(f"   {status} {provider}: {', '.join(cap_list)}")
+
+        # Show plugin providers
+        if plugin_providers:
+            print("\n🔌 Plugin Providers:")
+            from core.llm_plugin_manager import get_plugin_manager
+            plugin_manager = get_plugin_manager()
+
+            for provider in plugin_providers:
+                info = plugin_manager.get_provider_info(provider)
+                if info:
+                    caps = info['capabilities']
+                    cap_list = []
+                    if caps.get('text'): cap_list.append('text')
+                    if caps.get('vision'): cap_list.append('vision')
+                    if caps.get('streaming'): cap_list.append('streaming')
+
+                    status = "✅" if info['config_valid'] else "❌"
+                    print(f"   {status} {provider}: {', '.join(cap_list)}")
+
+        if not providers:
+            print("   No providers available")
+
+    except Exception as e:
+        print(f"   ❌ Error listing providers: {e}")
+
+    return {'success': True, 'command': 'list_providers'}
+
+def execute_discover_plugins_command(args) -> Dict[str, Any]:
+    """Discover and load plugins"""
+    plugin_dir = getattr(args, 'llm_plugin_dir', None) or 'plugins/llm_plugins'
+
+    print(f"🔍 Discovering plugins in: {plugin_dir}")
+
+    try:
+        from core.llm_client import discover_llm_plugins
+        discover_llm_plugins(plugin_dir)
+
+        print("✅ Plugin discovery completed")
+
+    except Exception as e:
+        print(f"❌ Plugin discovery failed: {e}")
+        return {'success': False, 'error': str(e)}
+
+    return {'success': True, 'command': 'discover_plugins'}
+
+def execute_direct_media_command(args) -> Dict[str, Any]:
+    """Execute direct media processing command"""
+    input_path = args.input_path
+
+    if not Path(input_path).exists():
+        return {'success': False, 'error': f'Input file not found: {input_path}'}
+
+    # Check if it's a supported media file
+    supported_media = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp', '.mp4', '.avi', '.mov']
+    if not any(input_path.lower().endswith(ext) for ext in supported_media):
+        return {'success': False, 'error': f'Unsupported media format: {input_path}'}
+
+    print(f"🎬 Processing media directly: {input_path}")
+
+    try:
+        from core.llm_client import process_media_directly
+
+        provider = getattr(args, 'provider', None)
+        prompt = getattr(args, 'media_prompt', None)
+
+        result = process_media_directly(
+            media_path=input_path,
+            provider=provider,
+            prompt=prompt
+        )
+
+        print(f"\n📄 Analysis Result:")
+        print(f"{result}\n")
+
+        # Save result if output specified
+        if hasattr(args, 'output_dir') and args.output_dir:
+            output_file = Path(args.output_dir) / f"{Path(input_path).stem}_analysis.txt"
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(f"Direct Media Analysis\n")
+                f.write(f"File: {input_path}\n")
+                f.write(f"Provider: {provider or 'auto-detected'}\n")
+                f.write(f"Timestamp: {datetime.now().isoformat()}\n\n")
+                f.write(result)
+
+            print(f"💾 Result saved to: {output_file}")
+
+        return {
+            'success': True,
+            'command': 'direct_media',
+            'result': result,
+            'input_file': input_path
+        }
+
+    except Exception as e:
+        print(f"❌ Direct media processing failed: {e}")
+        return {'success': False, 'error': str(e)}

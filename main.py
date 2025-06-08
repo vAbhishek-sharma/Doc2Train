@@ -68,7 +68,7 @@ def print_banner():
     print(banner)
 
 def main():
-    """Enhanced main entry point with YAML config support"""
+    """Enhanced main entry point with YAML config support and checkpoint resume"""
 
     # Print banner
     print_banner()
@@ -78,6 +78,10 @@ def main():
     args = parser.parse_args()
 
     try:
+        # NEW: Handle checkpoint resume first
+        if hasattr(args, 'resume_from_checkpoint') and args.resume_from_checkpoint:
+            return resume_from_checkpoint(args.resume_from_checkpoint, args)
+
         # NEW: Check for config commands first
         if hasattr(args, 'show_config') and args.show_config:
             show_current_config()
@@ -104,13 +108,26 @@ def main():
         else:
             print(f"📋 Sync mode: Sequential LLM processing")
 
+        # Show auto-stop settings if enabled
+        auto_stop_settings = []
+        if config.get('auto_stop_on_quota_exceeded', True):
+            auto_stop_settings.append("quota exceeded")
+        if config.get('auto_stop_on_consecutive_failures'):
+            auto_stop_settings.append(f"{config['auto_stop_on_consecutive_failures']} consecutive failures")
+        if config.get('auto_stop_after_time'):
+            auto_stop_settings.append(f"{config['auto_stop_after_time']} minutes")
+        if config.get('auto_stop_after_files'):
+            auto_stop_settings.append(f"{config['auto_stop_after_files']} files")
+
+        if auto_stop_settings:
+            print(f"⏸️  Auto-stop enabled: {', '.join(auto_stop_settings)}")
+
         # Validate arguments (keep existing validation)
         validate_args_enhanced(args)
 
         # Validate input and get files (keep existing logic)
         if not validate_input_enhanced(args):
             return 1
-
 
         # Get supported files
         supported_files = get_supported_files(args.input_path)
@@ -150,23 +167,57 @@ def main():
         pipeline = ProcessingPipeline(config)
         results = pipeline.process_files(supported_files, args)
 
-        # Show enhanced results
-        show_results_enhanced(results, args, config)
+        # NEW: Check if processing was auto-stopped
+        if results.get('auto_stopped', False):
+            print(f"\n⏸️  Processing auto-stopped: {results.get('stop_reason', 'Unknown reason')}")
+            checkpoint_file = Path(config['output_dir']) / 'checkpoint.json'
+            if checkpoint_file.exists():
+                print(f"💾 Checkpoint saved: {checkpoint_file}")
+                print(f"🔄 To continue: python main.py --resume-from-checkpoint {checkpoint_file}")
 
-        return 0 if results.get('success', True) else 1
+            # Show partial results
+            show_results_enhanced(results, args, config)
+            return 2  # Special exit code for auto-stop
+        else:
+            # Show enhanced results
+            show_results_enhanced(results, args, config)
+            return 0 if results.get('success', True) else 1
 
     except KeyboardInterrupt:
         print("\n⚠️ Processing interrupted by user")
+
+        # NEW: Save checkpoint on manual interruption
+        try:
+            checkpoint_data = {
+                'timestamp': time.time(),
+                'stop_reason': 'User interruption',
+                'interrupted': True,
+                'config': config if 'config' in locals() else args_to_config(args)
+            }
+
+            output_dir = getattr(args, 'output_dir', 'output')
+            checkpoint_file = Path(output_dir) / 'interrupted_checkpoint.json'
+
+            with open(checkpoint_file, 'w') as f:
+                import json
+                json.dump(checkpoint_data, f, indent=2, default=str)
+
+            print(f"💾 Interruption checkpoint saved: {checkpoint_file}")
+
+        except Exception as e:
+            print(f"⚠️  Could not save interruption checkpoint: {e}")
+
         # Show partial results if any
         if progress_tracker.get_completed_count() > 0:
             print(f"📊 Partial completion: {progress_tracker.get_completed_count()}/{progress_tracker.get_total_count()} files")
         return 130
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
-        if config.get('verbose', False):
+        if config.get('verbose', False) if 'config' in locals() else getattr(args, 'verbose', False):
             import traceback
             traceback.print_exc()
         return 1
+
 
 def show_processing_plan_enhanced(args, files: List[str], config: Dict):
     """Show enhanced processing plan"""
@@ -195,7 +246,7 @@ def show_processing_plan_enhanced(args, files: List[str], config: Dict):
         quality_filters.append(f"images ≥{args.min_image_size}px")
     if args.min_text_length > MIN_TEXT_LENGTH:
         quality_filters.append(f"text ≥{args.min_text_length} chars")
-    if args.skip_single_color:
+    if args.skip_single_color_images:
         quality_filters.append("skip solid colors")
     if args.header_regex:
         quality_filters.append(f"header regex: {args.header_regex}")
@@ -370,6 +421,230 @@ def format_time(seconds: float) -> str:
         minutes = (seconds % 3600) // 60
         return f"{hours:.0f}h {minutes:.0f}m"
 
+
+def resume_from_checkpoint(checkpoint_file: str, args) -> int:
+    """Resume processing from a checkpoint file"""
+    try:
+        if not Path(checkpoint_file).exists():
+            print(f"❌ Checkpoint file not found: {checkpoint_file}")
+            return 1
+
+        with open(checkpoint_file, 'r') as f:
+            import json
+            checkpoint_data = json.load(f)
+
+        print(f"🔄 Resuming from checkpoint: {checkpoint_file}")
+        print(f"📊 Previous stop reason: {checkpoint_data.get('stop_reason', 'Unknown')}")
+
+        # Handle different checkpoint types
+        if 'remaining_files' in checkpoint_data:
+            remaining_files = checkpoint_data['remaining_files']
+            print(f"📄 Remaining files: {len(remaining_files)}")
+
+            if not remaining_files:
+                print("✅ All files already processed!")
+                return 0
+
+            # Continue processing with remaining files
+            config = checkpoint_data.get('config', args_to_config(args))
+
+            # Update args input_path to process remaining files
+            # Create temporary file list or use the remaining files directly
+            temp_dir = Path('temp_resume')
+            temp_dir.mkdir(exist_ok=True)
+
+            # For simplicity, just process the remaining files directly
+            pipeline = ProcessingPipeline(config)
+            results = pipeline.process_files(remaining_files, args)
+
+            show_results_enhanced(results, args, config)
+
+            # Clean up checkpoint file on successful completion
+            if results.get('success', True) and not results.get('auto_stopped', False):
+                try:
+                    Path(checkpoint_file).unlink()
+                    print(f"🗑️  Checkpoint file cleaned up: {checkpoint_file}")
+                except:
+                    pass
+
+            return 0 if results.get('success', True) else 1
+
+        elif checkpoint_data.get('interrupted', False):
+            print("📄 Resuming from user interruption...")
+            print("ℹ️  Use normal processing command to restart from the beginning")
+            print("   or use --mode resume to continue from cache")
+            return 0
+
+        else:
+            print("⚠️  Unknown checkpoint format")
+            return 1
+
+    except Exception as e:
+        print(f"❌ Error resuming from checkpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
+# NEW: Add config display function
+def show_current_config():
+    """Show current configuration"""
+    try:
+        config_loader = get_config_loader()
+        config = config_loader.get_processing_config()
+
+        print("⚙️  Current Configuration:")
+        print("=" * 50)
+
+        sections = {
+            'Basic Settings': ['mode', 'output_dir', 'output_format'],
+            'Processing': ['use_async', 'threads', 'max_workers', 'batch_size', 'use_cache'],
+            'Quality Control': ['min_image_size', 'min_text_length', 'quality_threshold'],
+            'Features': ['extract_images', 'use_ocr', 'include_vision', 'use_smart_analysis'],
+            'LLM Settings': ['provider', 'model', 'max_concurrent_calls'],
+            'Auto-Stop': ['auto_stop_on_quota_exceeded', 'auto_stop_on_consecutive_failures', 'auto_stop_after_time']
+        }
+
+        for section, keys in sections.items():
+            print(f"\n{section}:")
+            for key in keys:
+                value = config.get(key, 'Not set')
+                print(f"  {key}: {value}")
+
+    except Exception as e:
+        print(f"❌ Error displaying config: {e}")
+
+# NEW: Add config saving function
+def save_config_from_args(args):
+    """Save current args as config file"""
+    try:
+        config = args_to_config(args)
+        config_loader = get_config_loader()
+
+        # Update config with args
+        for key, value in config.items():
+            config_loader.set(key, value)
+
+        config_loader.save_config()
+        print(f"✅ Configuration saved to: {config_loader.config_file}")
+
+    except Exception as e:
+        print(f"❌ Error saving config: {e}")
+
+
+
+
+
+
+def handle_plugin_commands(args) -> bool:
+    """
+    NEW: Handle plugin-related commands
+
+    Returns:
+        True if a plugin command was executed (should exit)
+    """
+    # List providers
+    if hasattr(args, 'list_providers') and args.list_providers:
+        execute_list_providers_command()
+        return True
+
+    # List plugins
+    if hasattr(args, 'list_plugins') and args.list_plugins:
+        from core.llm_client import list_llm_plugins
+        list_llm_plugins()
+        return True
+
+    # Discover plugins
+    if hasattr(args, 'discover_plugins') and args.discover_plugins:
+        execute_discover_plugins_command(args)
+        return True
+
+    # Provider capabilities
+    if hasattr(args, 'provider_capabilities') and args.provider_capabilities:
+        execute_provider_capabilities_command()
+        return True
+
+    return False
+
+def handle_direct_media_processing(args) -> bool:
+    """
+    NEW: Handle direct media processing
+
+    Returns:
+        True if direct media processing was executed (should exit)
+    """
+    if hasattr(args, 'direct_media') and args.direct_media:
+        result = execute_direct_media_command(args)
+        if not result['success']:
+            print(f"❌ {result['error']}")
+            sys.exit(1)
+        return True
+
+    return False
+
+def setup_plugins(config: Dict[str, Any]):
+    """
+    NEW: Setup and discover plugins based on configuration
+    """
+    # Discover LLM plugins if directory specified
+    if config.get('llm_plugin_dir'):
+        print(f"🔍 Loading plugins from: {config['llm_plugin_dir']}")
+        from core.llm_client import discover_llm_plugins
+        discover_llm_plugins(config['llm_plugin_dir'])
+
+    # Auto-discover from default directories
+    default_plugin_dirs = ['plugins/llm_plugins', './plugins', './llm_plugins']
+    for plugin_dir in default_plugin_dirs:
+        if Path(plugin_dir).exists():
+            from core.llm_client import discover_llm_plugins
+            discover_llm_plugins(plugin_dir)
+
+def execute_provider_capabilities_command() -> Dict[str, Any]:
+    """Show detailed capabilities of all providers"""
+    print("🔍 Provider Capabilities:")
+
+    try:
+        from core.llm_client import get_available_providers
+        from core.llm_plugin_manager import get_plugin_manager
+
+        providers = get_available_providers()
+        plugin_manager = get_plugin_manager()
+
+        for provider in providers:
+            print(f"\n📊 {provider.upper()}:")
+
+            # Get detailed info
+            if provider in ['openai', 'deepseek', 'local']:
+                # Built-in provider
+                from config.settings import LLM_PROVIDERS
+                config = LLM_PROVIDERS.get(provider, {})
+                models = config.get('models', {})
+
+                print(f"   Type: Built-in")
+                print(f"   Text Model: {models.get('text', 'N/A')}")
+                print(f"   Vision Model: {models.get('vision', 'N/A')}")
+                print(f"   Configured: {'✅' if config.get('api_key') else '❌'}")
+            else:
+                # Plugin provider
+                info = plugin_manager.get_provider_info(provider)
+                if info:
+                    print(f"   Type: Plugin")
+                    print(f"   Text Support: {'✅' if info['capabilities']['text'] else '❌'}")
+                    print(f"   Vision Support: {'✅' if info['capabilities']['vision'] else '❌'}")
+                    print(f"   Streaming: {'✅' if info['capabilities']['streaming'] else '❌'}")
+                    print(f"   Configured: {'✅' if info['config_valid'] else '❌'}")
+
+                    if info['models']:
+                        print(f"   Available Models:")
+                        for model, details in info['models'].items():
+                            print(f"     - {model} ({details.get('type', 'text')})")
+
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+
+    return {'success': True, 'command': 'provider_capabilities'}
+
+
+
 if __name__ == "__main__":
     try:
         exit_code = main()
@@ -382,3 +657,4 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
+

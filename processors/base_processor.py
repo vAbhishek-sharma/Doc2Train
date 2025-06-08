@@ -225,7 +225,7 @@ class BaseProcessor(ABC):
 
         filtered = []
         min_size = self.config.get('min_image_size', 0)
-        skip_single_color = self.config.get('skip_single_color', False)
+        skip_single_color_images = self.config.get('skip_single_color_images', False)
 
         for img in images:
             # Size filter
@@ -237,7 +237,7 @@ class BaseProcessor(ABC):
                     continue
 
             # Single color filter
-            if skip_single_color and img.get('is_single_color', False):
+            if skip_single_color_images and img.get('is_single_color', False):
                 if self.config.get('verbose'):
                     print(f"   Skipping single-color image")
                 continue
@@ -284,7 +284,8 @@ class BaseProcessor(ABC):
 
 
     def _clean_text(self, text: str) -> str:
-        """Clean OCR text from multilingual sources"""
+        """Clean text content"""
+        import unicodedata
 
         # Normalize Unicode
         text = unicodedata.normalize('NFKC', text)
@@ -293,32 +294,36 @@ class BaseProcessor(ABC):
         text = text.replace('\r\n', '\n').replace('\r', '\n')
 
         # Remove excessive whitespace
-        text = regex.sub(r'\n{3,}', '\n\n', text)  # Max 2 consecutive newlines
-        text = regex.sub(r'[ \t]{2,}', ' ', text)  # Reduce multiple spaces/tabs to 1
+        text = re.sub(r'\n{3,}', '\n\n', text)  # Max 2 consecutive newlines
+        text = re.sub(r'[ \t]{2,}', ' ', text)  # Reduce multiple spaces/tabs to 1
 
-        # Remove unusual characters but keep:
-        # - Unicode letters (\p{L})
-        # - Numbers (\p{N})
-        # - Punctuation (\p{P})
-        # - Separators (like spaces, tabs) (\p{Z})
-        allowed = regex.compile(r'[^\p{L}\p{N}\p{P}\p{Z}\n]')
-        text = allowed.sub('', text)
+        # Remove control characters but keep basic punctuation and letters
+        # Using simpler regex without Unicode categories
+        text = re.sub(r'[^\w\s\-.,!?;:()\[\]{}"\'/@#$%^&*+=<>|\\`~\n]', '', text)
 
         # Optional: Replace common ligatures
         ligature_map = {
             'ﬁ': 'fi',
             'ﬂ': 'fl',
-            '’': "'",
+            '"': "'",
+            '"': '"',
+            '"': '"',
+            '–': '-',
             '“': '"',
             '”': '"',
-            '–': '-',  # en-dash
-            '—': '-',  # em-dash
-            '…': '...',  # ellipsis
+            '‘': "'",
+            '’': "'",
+            '–': '-',     # en dash
+            '—': '-',     # em dash
+            '…': '...',   # ellipsis
         }
         for bad, good in ligature_map.items():
             text = text.replace(bad, good)
 
         return text.strip()
+
+
+
 
     def _validate_extraction_quality(self, text: str, images: List[Dict]) -> bool:
         """Validate extraction quality"""
@@ -337,6 +342,7 @@ class BaseProcessor(ABC):
         """Get processor-specific file information - override in subclasses"""
         return {}
 
+    ### Cache functions ###
     def _load_from_cache(self, file_path: str) -> Optional[Dict]:
         """Load cached extraction results"""
         return self.cache_manager.load_from_cache(file_path, self.config)
@@ -349,6 +355,7 @@ class BaseProcessor(ABC):
         """Check if file has cached results"""
         return self.cache_manager.is_cached(file_path, self.config)
 
+    ### Stat Functions ###
     def _update_stats(self, success: bool, text_chars: int, image_count: int, processing_time: float):
         """Update processor statistics"""
         self.stats['files_processed'] += 1
@@ -582,3 +589,5 @@ def discover_plugins(plugin_dir: str):
 def list_all_processors():
     """List all registered processors"""
     _processor_registry.list_processors()
+
+

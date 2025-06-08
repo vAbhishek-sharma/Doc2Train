@@ -14,14 +14,6 @@ from config.settings import *
 def call_llm(prompt: str, task: str = 'general', max_retries: int = 3) -> str:
     """
     Call LLM with automatic provider selection and fallback
-
-    Args:
-        prompt: The prompt to send to the LLM
-        task: Task type for smart routing (conversations, embeddings, etc.)
-        max_retries: Number of retry attempts
-
-    Returns:
-        Generated text response
     """
     # Get the best provider/model for this task
     provider_info = _get_provider_for_task(task)
@@ -38,16 +30,28 @@ def call_llm(prompt: str, task: str = 'general', max_retries: int = 3) -> str:
                 raise ValueError(f"Unknown provider: {provider_info['provider']}")
 
         except Exception as e:
-            print(f"⚠️  Attempt {attempt + 1} failed: {e}")
+            error_msg = str(e)
+            print(f"⚠️  Attempt {attempt + 1} failed: {error_msg}")
+
+            # NEW: Handle specific API errors more gracefully
+            if "insufficient_quota" in error_msg or "429" in error_msg:
+                print(f"💰 OpenAI quota exceeded. Switching to fallback provider...")
+                provider_info = _get_fallback_provider()
+                continue
+            elif "authentication" in error_msg.lower() or "401" in error_msg:
+                print(f"🔑 Authentication failed for {provider_info['provider']}. Switching to fallback...")
+                provider_info = _get_fallback_provider()
+                continue
 
             if attempt < max_retries - 1:
                 # Try fallback provider on retry
                 provider_info = _get_fallback_provider()
             else:
-                raise e
+                # NEW: On final failure, return a placeholder instead of crashing
+                print(f"❌ All LLM attempts failed after {max_retries} retries")
+                return '{"error": "LLM processing failed - continuing with extraction only"}'
 
     raise Exception("All retry attempts failed")
-
 def call_vision_llm(prompt: str, image_data: Dict, max_retries: int = 3) -> str:
     """
     Call vision LLM to describe/analyze images

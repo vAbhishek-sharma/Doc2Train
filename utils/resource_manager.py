@@ -6,8 +6,8 @@ from typing import Optional
 class ResourceManager:
     """Manage system resources and prevent overload"""
 
-    def __init__(self, max_memory_gb: float = 8.0, max_threads: int = 8):
-        self.max_memory_bytes = max_memory_gb * 1024**3
+    def __init__(self, max_memory_in_gigabytes: float = 8.0, max_threads: int = 8):
+        self.max_memory_bytes = max_memory_in_gigabytes * 1024**3
         self.max_threads = max_threads
         self._active_threads = 0
         self._lock = threading.Lock()
@@ -34,11 +34,11 @@ class ResourceManager:
     def get_optimal_workers(self, total_files: int) -> int:
         """Calculate optimal number of workers"""
         cpu_count = psutil.cpu_count()
-        memory_gb = psutil.virtual_memory().total / (1024**3)
+        memory_in_gigabytes = psutil.virtual_memory().total / (1024**3)
 
         # Conservative approach
         max_by_cpu = min(cpu_count, 8)
-        max_by_memory = max(1, int(memory_gb // 2))
+        max_by_memory = max(1, int(memory_in_gigabytes // 2))
         max_by_files = min(total_files, 16)
 
         return min(max_by_cpu, max_by_memory, max_by_files)

@@ -55,7 +55,7 @@ class ConfigLoader:
             'quality': {
                 'min_image_size': 1000,
                 'min_text_length': 100,
-                'skip_single_color': False,
+                'skip_single_color_images': False,
                 'header_regex': '',
                 'quality_threshold': 0.7
             },
@@ -204,7 +204,7 @@ class ConfigLoader:
             # Quality control
             'min_image_size': self.get('quality.min_image_size'),
             'min_text_length': self.get('quality.min_text_length'),
-            'skip_single_color': self.get('quality.skip_single_color'),
+            'skip_single_color_images': self.get('quality.skip_single_color_images'),
             'header_regex': self.get('quality.header_regex'),
             'quality_threshold': self.get('quality.quality_threshold'),
 

@@ -49,14 +49,14 @@ class ProcessManager:
 
         try:
             # Consider available memory
-            memory_gb = psutil.virtual_memory().total / (1024**3)
+            memory_in_gigabytes = psutil.virtual_memory().total / (1024**3)
 
             # For I/O bound tasks (threading), use more workers
             if not self.use_processes:
                 return min(cpu_count * 2, 16)  # Cap at 16 threads
 
             # For CPU bound tasks (multiprocessing), use fewer workers
-            if memory_gb < 4:
+            if memory_in_gigabytes < 4:
                 return max(1, cpu_count - 1)  # Leave 1 CPU free on low-mem systems
             else:
                 return cpu_count
@@ -582,7 +582,7 @@ def optimize_worker_count(task_type: str = 'io_bound') -> int:
     cpu_count = multiprocessing.cpu_count()
 
     try:
-        memory_gb = psutil.virtual_memory().total / (1024**3)
+        memory_in_gigabytes = psutil.virtual_memory().total / (1024**3)
 
         if task_type == 'io_bound':
             # I/O bound tasks can use more workers
@@ -590,7 +590,7 @@ def optimize_worker_count(task_type: str = 'io_bound') -> int:
 
         elif task_type == 'cpu_bound':
             # CPU bound tasks should not exceed CPU count
-            if memory_gb < 4:
+            if memory_in_gigabytes < 4:
                 return max(1, cpu_count - 1)
             else:
                 return cpu_count

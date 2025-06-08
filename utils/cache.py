@@ -60,7 +60,7 @@ class CacheManager:
                 'min_image_size': config.get('min_image_size', 1000),
                 'min_text_length': config.get('min_text_length', 100),
                 'header_regex': config.get('header_regex', ''),
-                'skip_single_color': config.get('skip_single_color', False),
+                'skip_single_color_images': config.get('skip_single_color_images', False),
                 'use_ocr': config.get('use_ocr', True),
                 'quality_threshold': config.get('quality_threshold', 0.7)
             }

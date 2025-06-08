@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 from pathlib import Path
 
 def create_enhanced_parser() -> argparse.ArgumentParser:
-    """Create the complete enhanced argument parser with Smart PDF Analysis"""
+    """Create the complete enhanced argument parser """
     parser = argparse.ArgumentParser(
         description="Doc2Train v2.0 Enhanced - Enterprise document processing with Smart PDF Analysis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -73,7 +73,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         help='Minimum text length in characters (default: 100)'
     )
     quality_group.add_argument(
-        '--skip-single-color',
+        '--skip-single-color-images',
         action='store_true',
         help='Skip single-color images (backgrounds, separators)'
     )
@@ -285,11 +285,13 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         type=str,
         help='Directory containing custom processor plugins'
     )
+
     advanced_group.add_argument(
-        '--config-file',
+        '--resume-from-checkpoint',
         type=str,
-        help='Load configuration from YAML/JSON file'
+        help='Resume from a checkpoint file (auto-generated on stops)'
     )
+
     advanced_group.add_argument(
         '--resume-from',
         type=str,
@@ -307,6 +309,36 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         default=300,
         help='Timeout per file in seconds (default: 300)'
     )
+
+    # NEW: Plugin-related arguments
+    plugin_group = parser.add_argument_group('Plugin Options')
+    plugin_group.add_argument('--llm-plugin-dir',
+                             help='Directory containing LLM provider plugins')
+    plugin_group.add_argument('--discover-plugins', action='store_true',
+                             help='Discover and load plugins from plugin directories')
+    plugin_group.add_argument('--list-plugins', action='store_true',
+                             help='List all loaded LLM plugins and their capabilities')
+    plugin_group.add_argument('--list-providers', action='store_true',
+                             help='List all available LLM providers (builtin + plugins)')
+
+    # NEW: Direct media processing arguments
+    media_group = parser.add_argument_group('Direct Media Processing')
+    media_group.add_argument('--direct-media', action='store_true',
+                            help='Process images/videos directly with LLM (skip traditional processors)')
+    media_group.add_argument('--media-prompt',
+                            help='Custom prompt for direct media analysis')
+    media_group.add_argument('--force-vision', action='store_true',
+                            help='Force use of vision models even for text-extractable content')
+
+    # NEW: Enhanced provider selection
+    provider_group = parser.add_argument_group('Enhanced Provider Options')
+    provider_group.add_argument('--provider-capabilities', action='store_true',
+                               help='Show capabilities of all providers')
+    provider_group.add_argument('--auto-select-provider', action='store_true',
+                               help='Automatically select best provider for each task')
+    provider_group.add_argument('--fallback-chain', nargs='+',
+                               help='Specify fallback provider chain (e.g., --fallback-chain anthropic google openai)')
+
 
     return parser
 
@@ -390,7 +422,7 @@ def args_to_config(args) -> Dict[str, Any]:
         # Quality control
         'min_image_size': args.min_image_size,
         'min_text_length': args.min_text_length,
-        'skip_single_color': args.skip_single_color,
+        'skip_single_color_images': args.skip_single_color_images,
         'header_regex': args.header_regex,
         'quality_threshold': args.quality_threshold,
 
@@ -474,7 +506,7 @@ Performance Optimization:
   python main.py documents/ --show-progress --benchmark
 
 Quality Control:
-  python main.py documents/ --min-image-size 5000 --skip-single-color
+  python main.py documents/ --min-image-size 5000 --skip-single-color-images
   python main.py documents/ --min-text-length 200 --quality-threshold 0.8
   python main.py documents/ --header-regex "CONFIDENTIAL|Page \\d+"
 

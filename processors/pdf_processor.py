@@ -1,6 +1,6 @@
 # processors/pdf_processor.py
 """
-Class-based PDF processor with Smart PDF Analysis integration
+PDF processor handles the extraction of the data
 """
 
 import fitz  # PyMuPDF
@@ -8,10 +8,11 @@ import io
 from PIL import Image
 from typing import Tuple, List, Dict
 from pathlib import Path
-import pdb
 from .base_processor import BaseProcessor
-from .smart_pdf_analyzer import SmartPDFAnalyzer, analyze_and_extract_pdf
-from .pdf_utils import extract_page_images_safe, perform_ocr_on_page, assess_pdf_image_quality
+from .pdf_utils.analyzer import SmartPDFAnalyzer
+from .pdf_utils.common import  perform_ocr_on_page
+from .pdf_utils.extraction import extract_page_images_safe
+
 
 class PDFProcessor(BaseProcessor):
     """PDF processor with smart analysis and full BaseProcessor functionality"""
@@ -20,6 +21,7 @@ class PDFProcessor(BaseProcessor):
         super().__init__(config)
         self.supported_extensions = ['.pdf']
         self.processor_name = "PDFProcessor"
+        # Import analyzer here to avoid circular import
         self.analyzer = SmartPDFAnalyzer()
 
     def extract_content_impl(self, file_path: str) -> Tuple[str, List[Dict]]:
@@ -35,6 +37,8 @@ class PDFProcessor(BaseProcessor):
         try:
             # Use smart analyzer to determine optimal processing strategy
             if self.config.get('use_smart_analysis', True):
+                # Import here to avoid circular import
+                from .pdf_utils.extraction import analyze_and_extract_pdf
                 text, images, analysis = analyze_and_extract_pdf(file_path)
 
                 # Store analysis results for debugging/stats
@@ -56,10 +60,14 @@ class PDFProcessor(BaseProcessor):
                 return self._basic_pdf_extraction(file_path)
 
         except Exception as e:
+            import traceback
+            print(f"🐛 DEBUG - Full traceback for PDF processing:")
+            traceback.print_exc()
             raise Exception(f"Error processing PDF {file_path}: {e}")
 
     def _basic_pdf_extraction(self, file_path: str) -> Tuple[str, List[Dict]]:
         """Basic PDF extraction without smart analysis (fallback)"""
+
         doc = fitz.open(file_path)
         text_content = ""
         images = []
@@ -98,6 +106,7 @@ class PDFProcessor(BaseProcessor):
         doc.close()
         return text_content.strip(), images
 
+    #TO DELETE
     def get_pdf_analysis(self, file_path: str):
         """Get detailed PDF analysis without processing"""
         return self.analyzer.analyze_pdf(file_path)
@@ -114,6 +123,9 @@ class PDFProcessor(BaseProcessor):
         except ImportError:
             return ""
         except Exception as e:
+            import traceback
+            print(f"🐛 DEBUG - Full traceback for PDF processing:")
+            traceback.print_exc()
             if self.config.get('verbose'):
                 print(f"⚠️  Image OCR failed: {e}")
             return ""
@@ -152,6 +164,9 @@ class PDFProcessor(BaseProcessor):
             return info
 
         except Exception as e:
+            import traceback
+            print(f"🐛 DEBUG - Full traceback for PDF processing:")
+            traceback.print_exc()
             return {'error': str(e)}
 
     def _estimate_processing_time(self, file_path: str) -> float:
@@ -179,9 +194,14 @@ class PDFProcessor(BaseProcessor):
             return analysis.total_pages * time_per_page
 
         except:
+            import traceback
+            print(f"🐛 DEBUG - Full traceback for PDF processing:")
+            traceback.print_exc()
             return 10.0  # Default estimate
 
 
+# Simple extraction function for backward compatibility
 def extract_pdf_content(file_path: str, skip_analysis=False) -> Tuple[str, List[Dict]]:
+    """Simple extraction function"""
     processor = PDFProcessor(config={'use_smart_analysis': not skip_analysis})
     return processor.extract_content_impl(file_path)
