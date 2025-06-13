@@ -23,7 +23,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from datetime import datetime
 from utils.config_loader import get_config_loader
-
+from cli.commands import execute_discover_llm_plugins_command, execute_list_providers_command
+import ipdb
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -35,12 +36,12 @@ try:
 
     # Import utilities
     from utils.progress import ProgressTracker, ProgressDisplay
-    from utils.validation import validate_input_enhanced
+    from utils.validation import validate_input_and_files
     from utils.cache import CacheManager
     from utils.config import *  # Import all config variables
-
+    from cli.commands import execute_processing_command
     # Import CLI components
-    from cli.args import create_enhanced_parser, parse_skip_pages, args_to_config, validate_args_enhanced
+    from cli.args import create_enhanced_parser, parse_skip_pages, args_to_config, validate_args
 
     # Import output handling
     from outputs.writers import OutputWriter
@@ -59,9 +60,9 @@ def print_banner():
     """Print enhanced Doc2Train banner"""
     banner = """
 ╔══════════════════════════════════════════════════════════════════╗
-║                       Doc2Train v2.0 Enhanced                   ║
+║                       Doc2Train v2.0 Enhanced                    ║
 ║               🚀 Enterprise Document Processing 🚀              ║
-║          Real-time • Parallel • Fault-tolerant • Smart          ║
+║          Real-time • Parallel • Fault-tolerant • Smart           ║
 ║                     Plugin Architecture Ready                    ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
@@ -69,7 +70,6 @@ def print_banner():
 
 def main():
     """Enhanced main entry point with YAML config support and checkpoint resume"""
-
     # Print banner
     print_banner()
 
@@ -77,20 +77,23 @@ def main():
     parser = create_enhanced_parser()
     args = parser.parse_args()
 
-    try:
-        # NEW: Handle checkpoint resume first
-        if hasattr(args, 'resume_from_checkpoint') and args.resume_from_checkpoint:
-            return resume_from_checkpoint(args.resume_from_checkpoint, args)
+    # 2. Handle config-related utility commands
 
-        # NEW: Check for config commands first
-        if hasattr(args, 'show_config') and args.show_config:
+    try:
+
+
+        if getattr(args, 'show_config', False):
             show_current_config()
             return 0
-        if hasattr(args, 'save_config') and args.save_config:
+
+        if getattr(args, 'save_config', False):
             save_config_from_args(args)
             return 0
 
-        # NEW: Load YAML config and merge with args
+        # Validate arguments
+        validate_args(args)
+
+        #merge args and config file into single config param
         config_file = getattr(args, 'config_file', 'config.yaml')
         if config_file and Path(config_file).exists():
             config_loader = get_config_loader(config_file)
@@ -98,8 +101,13 @@ def main():
             config = config_loader.get_processing_config()
             print(f"⚙️ Using config: {config_file}")
         else:
-            # Fallback to args-based config
             config = args_to_config(args)
+
+        handle_plugin_commands(config)
+        # 3. Handle resume logic (may need merged config)
+        if config.get('resume_from_checkpoint'):
+            return resume_from_checkpoint(config['resume_from_checkpoint'], config)
+
 
         # Show async/sync mode
         if config.get('use_async', True):
@@ -122,18 +130,17 @@ def main():
         if auto_stop_settings:
             print(f"⏸️  Auto-stop enabled: {', '.join(auto_stop_settings)}")
 
-        # Validate arguments (keep existing validation)
-        validate_args_enhanced(args)
-
+        #To rename later
         # Validate input and get files (keep existing logic)
-        if not validate_input_enhanced(args):
+        if not validate_input_and_files(args):
             return 1
 
         # Get supported files
+        #TO UPDATE: To add support for files from plugin processor folder
         supported_files = get_supported_files(args.input_path)
         if not supported_files:
             print(f"❌ Error: No supported files found in '{args.input_path}'")
-            print(f"Supported extensions: {', '.join(get_supported_extensions())}")
+            print(f"Supported extensions: {supported_files}")
             return 1
 
         # Set input path in config
@@ -159,13 +166,15 @@ def main():
                 print("Processing cancelled.")
                 return 0
 
+
         # Initialize progress tracking
         progress_tracker.initialize(len(supported_files))
         progress_display.set_show_progress(config.get('show_progress', True))
 
+        results = execute_processing_command(config, supported_files)
         # Execute enhanced processing
-        pipeline = ProcessingPipeline(config)
-        results = pipeline.process_files(supported_files, args)
+        # pipeline = ProcessingPipeline(config)
+        # results = pipeline.process_files(supported_files, args)
 
         # NEW: Check if processing was auto-stopped
         if results.get('auto_stopped', False):
@@ -176,11 +185,11 @@ def main():
                 print(f"🔄 To continue: python main.py --resume-from-checkpoint {checkpoint_file}")
 
             # Show partial results
-            show_results_enhanced(results, args, config)
+            show_results(results, args, config)
             return 2  # Special exit code for auto-stop
         else:
             # Show enhanced results
-            show_results_enhanced(results, args, config)
+            show_results(results, args, config)
             return 0 if results.get('success', True) else 1
 
     except KeyboardInterrupt:
@@ -195,7 +204,7 @@ def main():
                 'config': config if 'config' in locals() else args_to_config(args)
             }
 
-            output_dir = getattr(args, 'output_dir', 'output')
+            output_dir = config.get('output_dir')
             checkpoint_file = Path(output_dir) / 'interrupted_checkpoint.json'
 
             with open(checkpoint_file, 'w') as f:
@@ -338,7 +347,7 @@ def perform_enhanced_dry_run(files: List[str], config: Dict):
     print(f"   Threads: {threads}")
     print("Use without --dry-run to actually process files")
 
-def show_results_enhanced(results: Dict[str, Any], args, config: Dict):
+def show_results(results: Dict[str, Any], args, config: Dict):
     """Display enhanced processing results"""
 
     print(f"\n🎉 Processing completed!")
@@ -457,7 +466,7 @@ def resume_from_checkpoint(checkpoint_file: str, args) -> int:
             pipeline = ProcessingPipeline(config)
             results = pipeline.process_files(remaining_files, args)
 
-            show_results_enhanced(results, args, config)
+            show_results(results, args, config)
 
             # Clean up checkpoint file on successful completion
             if results.get('success', True) and not results.get('auto_stopped', False):
@@ -535,31 +544,35 @@ def save_config_from_args(args):
 
 
 
-def handle_plugin_commands(args) -> bool:
+def handle_plugin_commands(config) -> bool:
     """
     NEW: Handle plugin-related commands
 
-    Returns:
+    Returns:config.get('use_async', True)
         True if a plugin command was executed (should exit)
     """
     # List providers
-    if hasattr(args, 'list_providers') and args.list_providers:
+        # Discover plugins
+    if config.get('discover_plugins', True):
+        execute_discover_llm_plugins_command(config)
+        return True
+
+    if config.get('list_providers', True):
+
         execute_list_providers_command()
         return True
 
     # List plugins
-    if hasattr(args, 'list_plugins') and args.list_plugins:
-        from core.llm_client import list_llm_plugins
+    if config.get('list_plugins', True):
+
+        from core.llm_plugin_manager import list_llm_plugins
         list_llm_plugins()
         return True
 
-    # Discover plugins
-    if hasattr(args, 'discover_plugins') and args.discover_plugins:
-        execute_discover_plugins_command(args)
-        return True
 
     # Provider capabilities
-    if hasattr(args, 'provider_capabilities') and args.provider_capabilities:
+    if config.get('provider_capabilities', True):
+
         execute_provider_capabilities_command()
         return True
 

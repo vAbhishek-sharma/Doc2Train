@@ -13,7 +13,6 @@ import json
 import re
 import regex
 import unicodedata
-import pdb
 from utils.progress import start_file_processing, complete_file_processing, add_processing_error
 from utils.cache import CacheManager
 from utils.validation import validate_extraction_quality

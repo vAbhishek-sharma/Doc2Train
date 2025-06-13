@@ -5,7 +5,7 @@
 mode: "extract-only"  # extract-only, generate, full, resume, analyze
 input_path: ""  # Will be set by command line
 output_dir: "output"
-output_format: "jsonl"  # jsonl, json, csv, txt
+output_format: ["jsonl", "json"] # jsonl, json, csv, txt
 
 # Processing Settings
 processing:
@@ -18,7 +18,7 @@ processing:
   use_cache: true
   save_per_file: false  # Save each file immediately after processing
   # NEW: Auto-stop features
-  auto_stop_on_quota_exceeded: true  # Stop when API quota is hit
+  auto_stop_on_quota_exceeded: false  # Stop when API quota is hit
   auto_stop_on_consecutive_failures: 3  # Stop after N consecutive failures
   auto_stop_after_time: null  # Stop after X minutes (null = no limit)
   auto_stop_after_files: null  # Stop after N files (null = no limit)
@@ -46,6 +46,10 @@ features:
 
 # LLM Settings
 llm:
+  discover_plugins: true
+  provider_capabilities: true
+  list_providers: true
+  list_plugins: true
   provider: "openai"  # openai, deepseek, local
   model: ""  # Leave empty for auto-selection
   fallback_provider: "deepseek"
@@ -136,7 +140,7 @@ debug:
 advanced:
   plugin_dir: ""
   resume_from: ""
-  clear_cache_after: false
+  clear_cache_after: true
 
   # Prompt style definitions
   prompt_styles:

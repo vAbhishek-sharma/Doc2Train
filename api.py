@@ -20,8 +20,9 @@ import uvicorn
 
 # Import core functionality
 from .core.pipeline import ProcessingPipeline
-from .core.llm_client import get_available_providers, process_media_directly
-from .utils.validation import validate_input_enhanced
+from .core.llm_client import get_available_providers
+from .utils.validation import validate_input_and_files
+from .core.llm_plugin_manager import process_media_directly
 
 app = FastAPI(
     title="Doc2Train API",

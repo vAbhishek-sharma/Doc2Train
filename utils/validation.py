@@ -9,7 +9,8 @@ import os
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-def validate_input_enhanced(args) -> bool:
+#TO RENAME LATER
+def validate_input_and_files(args) -> bool:
     """
     Enhanced input validation with detailed error reporting
 
@@ -108,7 +109,6 @@ def validate_extraction_quality(text: str, images: List[Dict], config: Dict) -> 
     """
     # Get quality thresholds
     min_text_length = config.get('min_text_length', 0)
-    min_image_size = config.get('min_image_size', 0)
     quality_threshold = config.get('quality_threshold', 0.0)
 
     # Text quality checks

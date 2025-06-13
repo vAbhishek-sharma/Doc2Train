@@ -1,7 +1,4 @@
-# NEW: pyproject.toml - Modern Python packaging
-"""
-Modern packaging configuration
-"""
+# Modern Python packaging configuration for Doc2Train v2.0
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

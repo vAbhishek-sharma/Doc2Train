@@ -33,35 +33,19 @@ class LLMPluginManager:
                     print(f"⚠️ Failed to load built-in plugin {plugin_file.name}: {e}")
 
     def load_plugin(self, plugin_path: str) -> bool:
-        """
-        Load a plugin from file
-
-        Args:
-            plugin_path: Path to plugin file
-
-        Returns:
-            True if loaded successfully
-        """
         try:
-            # Import the plugin module
-            spec = importlib.util.spec_from_file_location("plugin", plugin_path)
-            plugin_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(plugin_module)
+            # Convert file path to module path
+            plugin_rel_path = os.path.relpath(plugin_path, start=os.getcwd()).replace(os.sep, '.')
+            module_name = os.path.splitext(plugin_rel_path)[0]  # remove .py
 
-            # Find plugin classes
+            plugin_module = importlib.import_module(module_name)
+
             for attr_name in dir(plugin_module):
                 attr = getattr(plugin_module, attr_name)
-                if (isinstance(attr, type) and
-                    issubclass(attr, BaseLLMPlugin) and
-                    attr != BaseLLMPlugin):
-
-                    # Create plugin instance with config
+                if isinstance(attr, type) and issubclass(attr, BaseLLMPlugin) and attr != BaseLLMPlugin:
                     plugin_name = attr_name.lower().replace('plugin', '')
-
-                    # Get config for this provider from environment
                     config = self._get_plugin_config(plugin_name)
                     plugin_instance = attr(config)
-
                     self.plugins[plugin_name] = plugin_instance
                     print(f"✅ Loaded LLM plugin: {plugin_name}")
                     return True
@@ -195,6 +179,7 @@ class LLMPluginManager:
             print(f"   {name}: {', '.join(capabilities)} - {status}")
 
 
+
 # Global plugin manager instance
 _plugin_manager = LLMPluginManager()
 
@@ -203,7 +188,6 @@ def get_plugin_manager() -> LLMPluginManager:
     return _plugin_manager
 
 
-# NEW: Enhanced core/llm_client.py (additions only)
 """
 Enhanced LLM client with plugin support and direct media processing
 """
@@ -211,7 +195,6 @@ Enhanced LLM client with plugin support and direct media processing
 from core.llm_plugin_manager import get_plugin_manager
 from pathlib import Path
 
-# NEW: Add these functions to existing llm_client.py
 
 def call_llm_plugin(provider: str, prompt: str, task: str = 'general',
                    images: List[Union[str, bytes]] = None, **kwargs) -> str:

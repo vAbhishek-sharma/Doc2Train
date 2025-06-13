@@ -10,7 +10,6 @@ import hashlib
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional  # Added this line
 from config.settings import *
-import pdb
 def extract_content(file_path: str, use_cache: bool = True) -> Tuple[str, List[Dict]]:
     """
     Extract text and images from any supported file

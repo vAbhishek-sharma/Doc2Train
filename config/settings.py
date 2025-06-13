@@ -30,20 +30,6 @@ DEFAULT_MODE = 'extract_only'
 # INPUT SETTINGS
 # =============================================================================
 
-# Supported file types and their processors
-SUPPORTED_FORMATS = {
-    '.pdf': 'pdf_processor',
-    '.txt': 'text_processor',
-    '.srt': 'text_processor',
-    '.vtt': 'text_processor',
-    '.epub': 'epub_processor',
-    '.png': 'image_processor',
-    '.jpg': 'image_processor',
-    '.jpeg': 'image_processor',
-    '.bmp': 'image_processor',
-    '.tiff': 'image_processor'
-}
-
 # Text processing
 CHUNK_SIZE = int(os.getenv('CHUNK_SIZE', 4000))
 OVERLAP = int(os.getenv('OVERLAP', 200))

@@ -3,9 +3,10 @@
 Sample Anthropic Claude plugin implementation
 """
 
+import os
 import requests
 import json
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List, Union, Optional
 from .base_llm_plugin import BaseLLMPlugin
 
 class AnthropicPlugin(BaseLLMPlugin):

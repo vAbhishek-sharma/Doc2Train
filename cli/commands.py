@@ -7,36 +7,35 @@ Handles all command execution with proper error handling and validation
 import time
 from typing import Dict, List, Any
 from pathlib import Path
-
+import ipdb
 from core.pipeline import ProcessingPipeline, PerformanceBenchmark
 from utils.validation import validate_and_report_system, create_validation_report
 from utils.cache import get_cache_stats, cleanup_cache, optimize_cache
 from processors.base_processor import list_all_processors, discover_plugins
 from outputs.writers import OutputManager
 
-def execute_processing_command(args, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
+def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
     """
     Execute the main processing command with all enhancements
 
     Args:
-        args: Command line arguments
+        config: Processing configuration (merged CLI + config file)
         file_paths: List of files to process
-        config: Processing configuration
 
     Returns:
         Processing results
     """
     # Handle special commands first
-    if args.validate_only:
-        return execute_validate_command(args, file_paths, config)
+    if config.get('validate_only'):
+        return execute_validate_command(config, file_paths)
 
-    if args.benchmark:
-        return execute_benchmark_command(args, file_paths, config)
+    if config.get('benchmark'):
+        return execute_benchmark_command(config, file_paths)
 
     # Execute main processing pipeline
     try:
         pipeline = ProcessingPipeline(config)
-        results = pipeline.process_files(file_paths, args)
+        results = pipeline.process_files(file_paths, config)
 
         # Save results using output manager
         output_manager = OutputManager(config)
@@ -51,7 +50,7 @@ def execute_processing_command(args, file_paths: List[str], config: Dict[str, An
             'command': 'process'
         }
 
-def execute_validate_command(args, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
+def execute_validate_command(config, file_paths: List[str]) -> Dict[str, Any]:
     """Execute validation-only command"""
     print("🔍 Running comprehensive validation...")
 
@@ -102,7 +101,7 @@ def execute_validate_command(args, file_paths: List[str], config: Dict[str, Any]
         'system_valid': system_valid
     }
 
-def execute_benchmark_command(args, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
+def execute_benchmark_command(config, file_paths: List[str]) -> Dict[str, Any]:
     """Execute performance benchmark command"""
     print("📊 Running performance benchmark...")
 
@@ -137,6 +136,7 @@ def execute_benchmark_command(args, file_paths: List[str], config: Dict[str, Any
             'error': str(e)
         }
 
+#To reconfigure
 def execute_cache_command(args) -> Dict[str, Any]:
     """Execute cache-related commands"""
     if hasattr(args, 'cache_action'):
@@ -218,9 +218,9 @@ def execute_cache_clear_command(args) -> Dict[str, Any]:
         'command': 'cache_clear'
     }
 
-def execute_info_command(args) -> Dict[str, Any]:
+def execute_info_command(config) -> Dict[str, Any]:
     """Execute info/status commands"""
-    print("ℹ️ Doc2Train v2.0 Enhanced Information:")
+    print("ℹ️ Doc2Train v2.0 Information:")
 
     # System info
     print(f"\n🖥️ System Information:")
@@ -307,30 +307,31 @@ def execute_plugin_discover_command(args) -> Dict[str, Any]:
     }
 
 # Command router
-def route_command(args, file_paths: List[str] = None, config: Dict[str, Any] = None) -> Dict[str, Any]:
+#TO BE REMOVED
+def route_command(config: Dict[str, Any], file_paths: List[str] = None) -> Dict[str, Any]:
     """
     Route command to appropriate handler
 
     Args:
-        args: Command line arguments
+        config: Processing configuration (merged CLI + config file)
         file_paths: List of files (for processing commands)
-        config: Processing configuration (for processing commands)
 
     Returns:
         Command results
     """
+    command = config.get('command')
+
     # Special commands that don't need file processing
-    if hasattr(args, 'command'):
-        if args.command == 'info':
-            return execute_info_command(args)
-        elif args.command == 'cache':
-            return execute_cache_command(args)
-        elif args.command == 'plugin':
-            return execute_plugin_command(args)
+    if command == 'info':
+        return execute_info_command(config)
+    elif command == 'cache':
+        return execute_cache_command(config)
+    elif command == 'plugin':
+        return execute_plugin_command(config)
 
     # Processing commands
-    if file_paths is not None and config is not None:
-        return execute_processing_command(args, file_paths, config)
+    if file_paths is not None:
+        return execute_processing_command(config, file_paths)
 
     return {
         'success': False,
@@ -432,8 +433,7 @@ def execute_list_providers_command() -> Dict[str, Any]:
     print("🤖 Available LLM Providers:")
 
     try:
-        from core.llm_client import get_available_providers, get_provider_capabilities
-
+        from core.llm_plugin_manager import get_available_providers, get_provider_capabilities
         providers = get_available_providers()
 
         builtin_providers = ['openai', 'deepseek', 'local']
@@ -482,14 +482,14 @@ def execute_list_providers_command() -> Dict[str, Any]:
 
     return {'success': True, 'command': 'list_providers'}
 
-def execute_discover_plugins_command(args) -> Dict[str, Any]:
+def execute_discover_llm_plugins_command(config) -> Dict[str, Any]:
     """Discover and load plugins"""
-    plugin_dir = getattr(args, 'llm_plugin_dir', None) or 'plugins/llm_plugins'
+    plugin_dir = config.get( 'llm_plugin_dir' ) or 'plugins/llm_plugins'
 
     print(f"🔍 Discovering plugins in: {plugin_dir}")
 
     try:
-        from core.llm_client import discover_llm_plugins
+        from core.llm_plugin_manager import discover_llm_plugins
         discover_llm_plugins(plugin_dir)
 
         print("✅ Plugin discovery completed")
@@ -515,7 +515,7 @@ def execute_direct_media_command(args) -> Dict[str, Any]:
     print(f"🎬 Processing media directly: {input_path}")
 
     try:
-        from core.llm_client import process_media_directly
+        from core.llm_plugin_manager import process_media_directly
 
         provider = getattr(args, 'provider', None)
         prompt = getattr(args, 'media_prompt', None)

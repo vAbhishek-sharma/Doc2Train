@@ -10,26 +10,38 @@ import time
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import pandas as pd
-
+import ipdb
+import pdb
 class OutputWriter:
     """
     Complete output writer with multiple format support and templates
     """
 
     def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize output writer
+            """Initialize output writer"""
+            self.config = config
+            self.output_dir = Path(config.get('output_dir', 'output'))
 
-        Args:
-            config: Processing configuration
-        """
-        self.config = config
-        self.output_dir = Path(config.get('output_dir', 'output'))
-        self.output_format = config.get('output_format', 'jsonl')
-        self.template_file = config.get('output_template')
+            # NEW: Parse multiple output formats
+            output_format = config.get('output_format', 'jsonl')
+            if isinstance(output_format, str) and ',' in output_format:
+                # Handle "jsonl, json, csv" format
+                self.output_formats = [fmt.strip() for fmt in output_format.split(',')]
+            elif isinstance(output_format, list):
+                # Handle ["jsonl", "json"] format
+                self.output_formats = output_format
+            else:
+                # Single format
+                self.output_formats = [output_format]
 
-        # Create output directories
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+            print(f"📝 Output formats: {', '.join(self.output_formats)}")
+
+            # Keep backward compatibility
+            self.output_format = self.output_formats[0]  # Primary format
+            self.template_file = config.get('output_template')
+
+            # Create output directories
+            self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def save_extraction_results(self, results: Dict[str, Any]):
         """
@@ -82,14 +94,39 @@ class OutputWriter:
 
     def _save_extracted_data(self, extracted_data: Dict[str, tuple], output_dir: Path):
         """Save raw extracted data"""
+        output_formats = self.output_formats
         for file_path, (text, images) in extracted_data.items():
             file_name = Path(file_path).stem
 
             # Save text
             if text:
-                text_file = output_dir / f"{file_name}.txt"
-                with open(text_file, 'w', encoding='utf-8') as f:
-                    f.write(text)
+                # Convert text to list of dict for compatibility with _write_data_file
+                text_items = [{
+                    'content': text,
+                    'source_file': file_path,
+                    'extraction_time': time.time(),
+                    'character_count': len(text)
+                }]
+
+                # Save in each requested format
+                for fmt in output_formats:
+                    output_file = output_dir / f"{file_name}.{fmt}"
+
+                    # Temporarily set the format and use existing method
+                    original_format = self.output_format
+                    self.output_format = fmt
+
+                    try:
+                        if fmt == 'txt':
+                            # For txt, keep original behavior (raw text)
+                            with open(output_file, 'w', encoding='utf-8') as f:
+                                f.write(text)
+                        else:
+                            # Use existing _write_data_file for other formats
+                            self._write_data_file(output_file, text_items, 'extracted')
+                    finally:
+                        # Restore original format
+                        self.output_format = original_format
 
             # Save image metadata
             if images:
@@ -158,6 +195,8 @@ class OutputWriter:
 
         except Exception as e:
             print(f"❌ Error writing {output_file}: {e}")
+            # Fallback to original single format method
+            self._write_data_file_original(output_file, items, data_type)
 
     def _write_jsonl(self, output_file: Path, items: List[Dict]):
         """Write data in JSONL format"""
@@ -610,11 +649,12 @@ class OutputManager:
 
         print(f"📋 Comprehensive report saved to {report_file}")
 
-# Convenience functions for easy use
+# to be removed
 def create_output_manager(config: Dict[str, Any]) -> OutputManager:
     """Create output manager with configuration"""
     return OutputManager(config)
 
+# to be removed
 def save_extraction_only_results(file_paths: List[str], extracted_data: Dict[str, tuple], config: Dict[str, Any]):
     """Save extraction-only results"""
     manager = OutputManager(config)
@@ -628,6 +668,7 @@ def save_extraction_only_results(file_paths: List[str], extracted_data: Dict[str
     }
     manager.writer.save_extraction_results(results)
 
+# to be removed
 def save_generated_training_data(generated_data: Dict[str, Dict[str, List]], config: Dict[str, Any]):
     """Save generated training data with validation"""
     manager = OutputManager(config)

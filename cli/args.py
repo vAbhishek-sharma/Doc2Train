@@ -126,30 +126,15 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         action='store_true',
         help='Process images with vision LLMs'
     )
-    feature_group.add_argument(
-        '--use-ocr',
-        action='store_true',
-        default=True,
-        help='Enable OCR for image text extraction (default: enabled)'
-    )
-    feature_group.add_argument(
-        '--no-ocr',
-        action='store_true',
-        help='Disable OCR processing'
-    )
+    ocr_group = feature_group.add_mutually_exclusive_group()
+    ocr_group.add_argument('--use-ocr', action='store_true',default=True, help='Enable OCR...')
+    ocr_group.add_argument('--no-ocr', action='store_true', help='Disable OCR...')
 
     # NEW: Smart PDF Analysis options
-    feature_group.add_argument(
-        '--smart-pdf-analysis',
-        action='store_true',
-        default=True,
-        help='Use smart PDF analysis for optimal processing strategy (default: enabled)'
-    )
-    feature_group.add_argument(
-        '--no-smart-analysis',
-        action='store_true',
-        help='Disable smart PDF analysis (use basic extraction)'
-    )
+    smart_group = feature_group.add_mutually_exclusive_group()
+    smart_group.add_argument('--smart-pdf-analysis', action='store_true', help='Enable smart PDF analysis...')
+    smart_group.add_argument('--no-smart-analysis', action='store_true', help='Disable smart PDF analysis...')
+
 
 
     # Configuration overrides
@@ -531,7 +516,7 @@ Smart Analysis Examples:
   python main.py scanned_docs/ --mode extract-only --smart-pdf-analysis --use-ocr
     """
 
-def validate_args_enhanced(args) -> bool:
+def validate_args(args) -> bool:
     """
     Enhanced argument validation with detailed error messages
 

@@ -40,7 +40,7 @@ Convert any document into high-quality AI training data at lightning speed. Extr
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/doc2train.git
+git clone https://github.com/vAbhishek-sharma/Doc2Train.git
 cd doc2train
 
 # Run the smart setup script
@@ -426,12 +426,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **OpenAI**: AI generation models
 - **FastAPI**: Modern API framework
 - **Streamlit**: Web interface
+  and Many many more...
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/doc2train/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/doc2train/discussions)
-- **Email**: support@doc2train.com
+- **Issues**: [GitHub Issues](https://github.com/vAbhishek-sharma/Doc2Train/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/vAbhishek-sharma/Doc2Train/discussions)
+- **Email**: Coming soon...
 
 ---
 

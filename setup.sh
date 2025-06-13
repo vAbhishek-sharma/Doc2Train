@@ -576,7 +576,7 @@ show_usage() {
     echo
     echo "${CYAN}📖 Documentation:${NC} Check README.md for detailed examples"
     echo "${CYAN}🐛 Issues:${NC} Run 'python test_doc2train.py' if something's wrong"
-    echo "${CYAN}💬 Support:${NC} https://github.com/your-username/doc2train"
+    echo "${CYAN}💬 Support:${NC} https://github.com/vAbhishek-sharma/Doc2Train"
     echo
     echo "${GREEN}Ready to convert documents to AI training data! 🚀${NC}"
 }

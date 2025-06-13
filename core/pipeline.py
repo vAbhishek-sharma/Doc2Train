@@ -4,11 +4,13 @@ Complete processing pipeline for Doc2Train v2.0 Enhanced
 Orchestrates the entire document processing workflow with parallel execution
 """
 
+import ipdb
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import threading
+from outputs.writers import OutputManager
 
 from processors.base_processor import get_processor_for_file, discover_plugins
 from core.generator import generate_training_data
@@ -17,7 +19,7 @@ from utils.progress import (
     initialize_progress, start_file_processing, complete_file_processing,
     add_processing_error, update_progress_display, show_completion_summary
 )
-from utils.validation import validate_input_enhanced
+from utils.validation import validate_input_and_files
 from outputs.writers import OutputWriter
 
 class ProcessingPipeline:
@@ -41,10 +43,10 @@ class ProcessingPipeline:
             'stop_reason': ''  # NEW: Reason for stopping
         }
         self.start_time = None  # NEW: Track processing start time
-        self.output_writer = OutputWriter(config)
+        self.output_manager = OutputManager(config)
         self._setup_pipeline()
 
-    def _should_auto_stop(self) -> tuple[bool, str]:
+    def _should_auto_stop(self) -> Tuple[bool, str]:
         """Check if processing should auto-stop"""
 
         # Check consecutive failures
@@ -95,7 +97,7 @@ class ProcessingPipeline:
         # Initialize progress tracking
         initialize_progress(len(file_paths), self.config.get('show_progress', False))
 
-        print(f"🚀 Starting enhanced processing pipeline...")
+        print(f"🚀 Starting processing pipeline...")
         print(f"   Mode: {self.config['mode']}")
         print(f"   Files: {len(file_paths)}")
         print(f"   Threads: {self.config.get('threads', 1)}")
@@ -230,7 +232,6 @@ class ProcessingPipeline:
         """Process files in parallel using ThreadPoolExecutor"""
         max_workers = min(self.config.get('threads', 4), len(file_paths))
         self.start_time = time.time()  # NEW: Track start time
-
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
             future_to_file = {
@@ -295,7 +296,7 @@ class ProcessingPipeline:
         """Extract content from a single file"""
         file_name = Path(file_path).name
         start_time = time.time()
-
+        print(f"Initiate the extraction process: {file_name}")
         try:
             # Get appropriate processor
             processor = get_processor_for_file(file_path, self.config)
@@ -390,7 +391,7 @@ class ProcessingPipeline:
                     'successful': 1,
                     'config_used': self.config
                 }
-                self.output_writer.save_extraction_results(extraction_results)
+                self.output_manager.save_all_results(extraction_results)
 
         except Exception as e:
             print(f"⚠️ Error saving immediate results for {Path(file_path).name}: {e}")
@@ -431,107 +432,108 @@ class ProcessingPipeline:
             })
             add_processing_error(file_name, error)
 
-        def _save_per_file_result(self, file_path: str, result: Dict[str, Any]):
-            """Save individual file result immediately (fault-tolerant)"""
+    def _save_per_file_result(self, file_path: str, result: Dict[str, Any]):
+        """Save individual file result immediately (fault-tolerant)"""
+        try:
+            output_dir = Path(self.config['output_dir'])
+            file_output_dir = output_dir / "per_file" / result['file_name']
+            file_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Save extracted text
+            if result.get('text'):
+                text_file = file_output_dir / "extracted_text.txt"
+                with open(text_file, 'w', encoding='utf-8') as f:
+                    f.write(result['text'])
+
+            # Save generated training data
+            if result.get('generated_data'):
+                self.output_writer.save_per_file_data(file_output_dir, result['generated_data'])
+
+            # Save metadata
+            metadata = {
+                'file_name': result['file_name'],
+                'file_path': result['file_path'],
+                'success': result['success'],
+                'processing_time': result.get('processing_time', 0),
+                'text_chars': result.get('text_chars', 0),
+                'image_count': result.get('image_count', 0),
+                'processor': result.get('processor', 'unknown'),
+                'generation_successful': result.get('generation_successful', False),
+                'processed_at': time.time()
+            }
+
+            metadata_file = file_output_dir / "metadata.json"
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                import json
+                json.dump(metadata, f, indent=2, default=str)
+
+        except Exception as e:
+            print(f"⚠️ Error saving per-file result for {result['file_name']}: {e}")
+
+    def _load_resume_state(self) -> List[str]:
+        """Load resume state from checkpoint file"""
+        try:
+            resume_file = Path(self.config['resume_from'])
+            if resume_file.exists():
+                import json
+                with open(resume_file, 'r') as f:
+                    resume_data = json.load(f)
+                return resume_data.get('processed_files', [])
+        except Exception as e:
+            print(f"⚠️ Error loading resume state: {e}")
+
+        return []
+
+    def _save_resume_state(self, processed_files: List[str]):
+        """Save resume state to checkpoint file"""
+        try:
+            resume_file = Path(self.config['output_dir']) / "resume_checkpoint.json"
+            resume_data = {
+                'processed_files': processed_files,
+                'saved_at': time.time(),
+                'config': self.config
+            }
+
+            with open(resume_file, 'w') as f:
+                import json
+                json.dump(resume_data, f, indent=2, default=str)
+
+        except Exception as e:
+            print(f"⚠️ Error saving resume state: {e}")
+
+    def cleanup_after_processing(self):
+
+        """Clean up resources after processing completion"""
+        if self.config.get('clear_cache_after_run', False):
             try:
-                output_dir = Path(self.config['output_dir'])
-                file_output_dir = output_dir / "per_file" / result['file_name']
-                file_output_dir.mkdir(parents=True, exist_ok=True)
+                from utils.cache import get_cache_stats, cleanup_cache
 
-                # Save extracted text
-                if result.get('text'):
-                    text_file = file_output_dir / "extracted_text.txt"
-                    with open(text_file, 'w', encoding='utf-8') as f:
-                        f.write(result['text'])
+                # Show before stats
+                before_stats = get_cache_stats()
+                print(f"🔍 Before cleanup: {before_stats.get('cache_entries', 0)} entries, {before_stats.get('total_size_mb', 0):.1f} MB")
 
-                # Save generated training data
-                if result.get('generated_data'):
-                    self.output_writer.save_per_file_data(file_output_dir, result['generated_data'])
+                # Try cleanup
+                cleanup_cache()
 
-                # Save metadata
-                metadata = {
-                    'file_name': result['file_name'],
-                    'file_path': result['file_path'],
-                    'success': result['success'],
-                    'processing_time': result.get('processing_time', 0),
-                    'text_chars': result.get('text_chars', 0),
-                    'image_count': result.get('image_count', 0),
-                    'processor': result.get('processor', 'unknown'),
-                    'generation_successful': result.get('generation_successful', False),
-                    'processed_at': time.time()
-                }
+                # Show after stats
+                after_stats = get_cache_stats()
+                print(f"🔍 After cleanup: {after_stats.get('cache_entries', 0)} entries, {after_stats.get('total_size_mb', 0):.1f} MB")
 
-                metadata_file = file_output_dir / "metadata.json"
-                with open(metadata_file, 'w', encoding='utf-8') as f:
-                    import json
-                    json.dump(metadata, f, indent=2, default=str)
+                # If still has entries, force clear
+                if after_stats.get('cache_entries', 0) > 0:
+                    print("🔧 Cleanup didn't work, trying force clear...")
+                    from utils.cache import clear_cache
+                    clear_cache()
+
+                    final_stats = get_cache_stats()
+                    print(f"🔍 After force clear: {final_stats.get('cache_entries', 0)} entries")
+
+                print("🧹 Cache cleanup completed")
 
             except Exception as e:
-                print(f"⚠️ Error saving per-file result for {result['file_name']}: {e}")
-
-        def _load_resume_state(self) -> List[str]:
-            """Load resume state from checkpoint file"""
-            try:
-                resume_file = Path(self.config['resume_from'])
-                if resume_file.exists():
-                    import json
-                    with open(resume_file, 'r') as f:
-                        resume_data = json.load(f)
-                    return resume_data.get('processed_files', [])
-            except Exception as e:
-                print(f"⚠️ Error loading resume state: {e}")
-
-            return []
-
-        def _save_resume_state(self, processed_files: List[str]):
-            """Save resume state to checkpoint file"""
-            try:
-                resume_file = Path(self.config['output_dir']) / "resume_checkpoint.json"
-                resume_data = {
-                    'processed_files': processed_files,
-                    'saved_at': time.time(),
-                    'config': self.config
-                }
-
-                with open(resume_file, 'w') as f:
-                    import json
-                    json.dump(resume_data, f, indent=2, default=str)
-
-            except Exception as e:
-                print(f"⚠️ Error saving resume state: {e}")
-
-        def cleanup_after_processing(self):
-            """Clean up resources after processing completion"""
-            if self.config.get('clear_cache_after_run', False):
-                try:
-                    from utils.cache import get_cache_stats, cleanup_cache
-
-                    # Show before stats
-                    before_stats = get_cache_stats()
-                    print(f"🔍 Before cleanup: {before_stats.get('cache_entries', 0)} entries, {before_stats.get('total_size_mb', 0):.1f} MB")
-
-                    # Try cleanup
-                    cleanup_cache()
-
-                    # Show after stats
-                    after_stats = get_cache_stats()
-                    print(f"🔍 After cleanup: {after_stats.get('cache_entries', 0)} entries, {after_stats.get('total_size_mb', 0):.1f} MB")
-
-                    # If still has entries, force clear
-                    if after_stats.get('cache_entries', 0) > 0:
-                        print("🔧 Cleanup didn't work, trying force clear...")
-                        from utils.cache import clear_cache
-                        clear_cache()
-
-                        final_stats = get_cache_stats()
-                        print(f"🔍 After force clear: {final_stats.get('cache_entries', 0)} entries")
-
-                    print("🧹 Cache cleanup completed")
-
-                except Exception as e:
-                    print(f"❌ Cache cleanup error: {e}")
-                    import traceback
-                    traceback.print_exc()
+                print(f"❌ Cache cleanup error: {e}")
+                import traceback
+                traceback.print_exc()
 
 
     def _save_checkpoint(self, all_files: List[str], current_file: str):

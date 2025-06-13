@@ -5,8 +5,7 @@ Output handling and formatting components
 """
 
 from .writers import (
-    OutputWriter, TemplateProcessor, OutputValidator, OutputManager,
-    create_output_manager, save_extraction_only_results, save_generated_training_data
+    OutputWriter, TemplateProcessor, OutputValidator, OutputManager
 )
 
 from .formatters import (
@@ -18,7 +17,6 @@ from .formatters import (
 __all__ = [
     # Writers
     'OutputWriter', 'TemplateProcessor', 'OutputValidator', 'OutputManager',
-    'create_output_manager', 'save_extraction_only_results', 'save_generated_training_data',
 
     # Formatters
     'BaseFormatter', 'JSONLFormatter', 'JSONFormatter', 'CSVFormatter', 'TextFormatter',

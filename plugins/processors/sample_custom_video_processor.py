@@ -1,6 +1,6 @@
 # plugins/processors/custom_video_processor.py
 from processors.base_processor import BaseProcessor
-from core.llm_client import process_media_directly
+from core.llm_plugin_manager import process_media_directly
 
 class VideoProcessor(BaseProcessor):
     """Custom video processor using direct LLM analysis"""
@@ -14,9 +14,9 @@ class VideoProcessor(BaseProcessor):
         """Extract content from video using LLM"""
         # Option 1: Process directly with LLM
         if self.config.get('use_direct_processing', True):
-            analysis = process_media_directly(
+            analysis = (
                 file_path,
-                prompt="Analyze this video and extract key information"
+                "Analyze this video and extract key information"
             )
             return analysis, []
 

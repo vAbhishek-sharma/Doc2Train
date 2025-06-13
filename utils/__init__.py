@@ -15,7 +15,7 @@ from .progress import (
 
 # Validation utilities
 from .validation import (
-    validate_input_enhanced, validate_extraction_quality, validate_configuration,
+    validate_input_and_files, validate_extraction_quality, validate_configuration,
     validate_system_requirements, validate_and_report_system, create_validation_report,
     assess_text_quality, validate_image_quality, is_supported_file, find_supported_files
 )
@@ -49,7 +49,7 @@ __all__ = [
     'get_processing_stats', 'get_performance_report',
 
     # Validation
-    'validate_input_enhanced', 'validate_extraction_quality', 'validate_configuration',
+    'validate_input_and_files', 'validate_extraction_quality', 'validate_configuration',
     'validate_system_requirements', 'validate_and_report_system', 'create_validation_report',
     'assess_text_quality', 'validate_image_quality', 'is_supported_file', 'find_supported_files',
 

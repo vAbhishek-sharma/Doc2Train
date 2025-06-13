@@ -237,26 +237,26 @@ def _generate_conversations(text: str) -> List[Dict]:
             break
 
         prompt = f"""
-{SYSTEM_PROMPTS['conversations']}
+            {SYSTEM_PROMPTS['conversations']}
 
-Based on this content, create a natural multi-turn conversation between a user and an AI assistant.
-Make it educational and engaging. Include 3-4 exchanges (user question -> AI response).
+            Based on this content, create a natural multi-turn conversation between a user and an AI assistant.
+            Make it educational and engaging. Include 3-4 exchanges (user question -> AI response).
 
-Content:
-{chunk}
+            Content:
+            {chunk}
 
-Format your response as JSON:
-{{"conversations": [
-    {{"messages": [
-        {{"role": "user", "content": "user question"}},
-        {{"role": "assistant", "content": "AI response"}}
-    ]}},
-    {{"messages": [
-        {{"role": "user", "content": "follow-up question"}},
-        {{"role": "assistant", "content": "AI response"}}
-    ]}}
-]}}
-"""
+            Format your response as JSON:
+            {{"conversations": [
+                {{"messages": [
+                    {{"role": "user", "content": "user question"}},
+                    {{"role": "assistant", "content": "AI response"}}
+                ]}},
+                {{"messages": [
+                    {{"role": "user", "content": "follow-up question"}},
+                    {{"role": "assistant", "content": "AI response"}}
+                ]}}
+            ]}}
+            """
 
         try:
             response = call_llm(prompt, task='conversations')
@@ -284,20 +284,20 @@ def _generate_embeddings(text: str) -> List[Dict]:
             break
 
         prompt = f"""
-{SYSTEM_PROMPTS['embeddings']}
+            {SYSTEM_PROMPTS['embeddings']}
 
-From this content, create pairs of sentences that have similar meanings but different wording.
-Also create some pairs with different meanings for contrast.
+            From this content, create pairs of sentences that have similar meanings but different wording.
+            Also create some pairs with different meanings for contrast.
 
-Content:
-{chunk}
+            Content:
+            {chunk}
 
-Format as JSON:
-{{"pairs": [
-    {{"sentence1": "first sentence", "sentence2": "similar meaning sentence", "similarity": 0.9}},
-    {{"sentence1": "different sentence", "sentence2": "unrelated sentence", "similarity": 0.1}}
-]}}
-"""
+            Format as JSON:
+            {{"pairs": [
+                {{"sentence1": "first sentence", "sentence2": "similar meaning sentence", "similarity": 0.9}},
+                {{"sentence1": "different sentence", "sentence2": "unrelated sentence", "similarity": 0.1}}
+            ]}}
+            """
 
         try:
             response = call_llm(prompt, task='embeddings')

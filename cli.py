@@ -87,7 +87,7 @@ Commands:
     # Import processing functionality
     try:
         from .main import ProcessingPipeline
-        from .utils.validation import validate_input_enhanced
+        from .utils.validation import validate_input_and_files
     except ImportError:
         print("❌ Error importing Doc2Train modules")
         print("Try: pip install --upgrade doc2train")

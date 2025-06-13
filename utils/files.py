@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import mimetypes
 from datetime import datetime
+import ipdb
+from processors.base_processor import get_supported_extensions
 
 def get_supported_files(directory: str, recursive: bool = True, max_files: Optional[int] = None) -> List[str]:
     """
@@ -38,8 +40,9 @@ def get_supported_files(directory: str, recursive: bool = True, max_files: Optio
         return []
 
     try:
+
         from config.settings import SUPPORTED_FORMATS
-        supported_extensions = set(SUPPORTED_FORMATS.keys())
+        supported_extensions = get_supported_extensions()
     except ImportError:
         # Fallback to basic supported extensions
         supported_extensions = {'.pdf', '.txt', '.epub', '.png', '.jpg', '.jpeg', '.srt', '.vtt', '.bmp', '.tiff'}
