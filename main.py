@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from datetime import datetime
 from utils.config_loader import get_config_loader
-from cli.commands import execute_discover_llm_plugins_command, execute_list_providers_command
+from cli.commands import execute_discover_llm_plugins_command, execute_list_providers_command, route_command
 import ipdb
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -171,7 +171,7 @@ def main():
         progress_tracker.initialize(len(supported_files))
         progress_display.set_show_progress(config.get('show_progress', True))
 
-        results = execute_processing_command(config, supported_files)
+        results = route_command(config, supported_files)
         # Execute enhanced processing
         # pipeline = ProcessingPipeline(config)
         # results = pipeline.process_files(supported_files, args)

@@ -8,47 +8,31 @@ import time
 from typing import Dict, List, Any
 from pathlib import Path
 import ipdb
-from core.pipeline import ProcessingPipeline, PerformanceBenchmark
+from core.pipeline import ProcessingPipeline, PerformanceBenchmark ,create_processing_pipeline
 from utils.validation import validate_and_report_system, create_validation_report
 from utils.cache import get_cache_stats, cleanup_cache, optimize_cache
 from processors.base_processor import list_all_processors, discover_plugins
 from outputs.writers import OutputManager
 
 def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
-    """
-    Execute the main processing command with all enhancements
+    """Execute the main processing command with all enhancements"""
 
-    Args:
-        config: Processing configuration (merged CLI + config file)
-        file_paths: List of files to process
-
-    Returns:
-        Processing results
-    """
     # Handle special commands first
     if config.get('validate_only'):
         return execute_validate_command(config, file_paths)
 
-    if config.get('benchmark'):
-        return execute_benchmark_command(config, file_paths)
-
-    # Execute main processing pipeline
     try:
-        pipeline = ProcessingPipeline(config)
+        pipeline = create_processing_pipeline(config)
         results = pipeline.process_files(file_paths, config)
 
-        # Save results using output manager
-        output_manager = OutputManager(config)
-        output_manager.save_all_results(results)
+        # Save results (only for non-benchmark modes)
+        if not config.get('benchmark'):
+            output_manager = OutputManager(config)
+            output_manager.save_all_results(results)
 
         return results
-
     except Exception as e:
-        return {
-            'success': False,
-            'error': str(e),
-            'command': 'process'
-        }
+        return {'success': False, 'error': str(e), 'command': 'process'}
 
 def execute_validate_command(config, file_paths: List[str]) -> Dict[str, Any]:
     """Execute validation-only command"""
@@ -110,7 +94,7 @@ def execute_benchmark_command(config, file_paths: List[str]) -> Dict[str, Any]:
 
     try:
         benchmark = PerformanceBenchmark(config)
-        benchmark_results = benchmark.run_benchmark(benchmark_files)
+        benchmark_results = benchmark.process_files(benchmark_files)
 
         # Save benchmark results
         output_dir = Path(config['output_dir'])
@@ -137,17 +121,18 @@ def execute_benchmark_command(config, file_paths: List[str]) -> Dict[str, Any]:
         }
 
 #To reconfigure
-def execute_cache_command(args) -> Dict[str, Any]:
+def execute_cache_command(config: Dict[str, Any]) -> Dict[str, Any]:
     """Execute cache-related commands"""
-    if hasattr(args, 'cache_action'):
-        if args.cache_action == 'stats':
-            return execute_cache_stats_command()
-        elif args.cache_action == 'cleanup':
-            return execute_cache_cleanup_command(args)
-        elif args.cache_action == 'optimize':
-            return execute_cache_optimize_command()
-        elif args.cache_action == 'clear':
-            return execute_cache_clear_command(args)
+    action = config.get('cache_action')
+
+    if action == 'stats':
+        return execute_cache_stats_command()
+    elif action == 'cleanup':
+        return execute_cache_cleanup_command(config)
+    elif action == 'optimize':
+        return execute_cache_optimize_command()
+    elif action == 'clear':
+        return execute_cache_clear_command(config)
 
     return {'success': False, 'error': 'Unknown cache command'}
 
@@ -179,19 +164,9 @@ def execute_cache_stats_command() -> Dict[str, Any]:
         'stats': stats
     }
 
-def execute_cache_cleanup_command(args) -> Dict[str, Any]:
-    """Clean up cache"""
-    print("🧹 Cleaning up cache...")
-
-    max_size_gb = getattr(args, 'max_cache_size', 5.0)
-    max_age_days = getattr(args, 'max_cache_age', 30)
-
-    cleanup_cache(max_size_gb, max_age_days)
-
-    return {
-        'success': True,
-        'command': 'cache_cleanup'
-    }
+def execute_cache_cleanup_command(config) -> Dict[str, Any]:
+    """Execute user-initiated cache cleanup"""
+    return ProcessingPipeline.perform_cache_cleanup(config=config, force_clear_if_needed=False)
 
 def execute_cache_optimize_command() -> Dict[str, Any]:
     """Optimize cache"""
@@ -204,13 +179,13 @@ def execute_cache_optimize_command() -> Dict[str, Any]:
         'command': 'cache_optimize'
     }
 
-def execute_cache_clear_command(args) -> Dict[str, Any]:
+def execute_cache_clear_command(config) -> Dict[str, Any]:
     """Clear cache"""
     print("🗑️ Clearing cache...")
 
     from utils.cache import clear_cache
 
-    file_path = getattr(args, 'cache_file', None)
+    file_path = config.get('cache_file', None)
     clear_cache(file_path)
 
     return {
@@ -483,17 +458,20 @@ def execute_list_providers_command() -> Dict[str, Any]:
     return {'success': True, 'command': 'list_providers'}
 
 def execute_discover_llm_plugins_command(config) -> Dict[str, Any]:
-    """Discover and load plugins"""
-    plugin_dir = config.get( 'llm_plugin_dir' ) or 'plugins/llm_plugins'
+    # Always include built-in plugins directory
+    plugin_dirs = ['plugins/llm_plugins']
 
-    print(f"🔍 Discovering plugins in: {plugin_dir}")
+    # Add user-specified directories from YAML config
+    user_dirs = config.get('llm_plugin_dirs', [])
+    if isinstance(user_dirs, list):
+        plugin_dirs.extend(user_dirs)
+
+    print(f"🔍 Discovering plugins in: {', '.join(plugin_dirs)}")
 
     try:
         from core.llm_plugin_manager import discover_llm_plugins
-        discover_llm_plugins(plugin_dir)
-
+        discover_llm_plugins(plugin_dirs)
         print("✅ Plugin discovery completed")
-
     except Exception as e:
         print(f"❌ Plugin discovery failed: {e}")
         return {'success': False, 'error': str(e)}

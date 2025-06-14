@@ -103,24 +103,30 @@ class LLMPluginManager:
 
         return config
 
-    def discover_plugins(self, plugin_dir: str):
+    def discover_plugins(self, plugin_dirs: List[str]):
         """
-        Discover and load all plugins in a directory
-
-        Args:
-            plugin_dir: Directory containing plugin files
+        Discover and load all plugins from multiple directories
+        Note: Built-in plugins are already loaded in __init__
         """
-        plugin_path = Path(plugin_dir)
-        if not plugin_path.exists():
-            print(f"⚠️ Plugin directory does not exist: {plugin_dir}")
-            return
+        total_loaded = 0
 
-        loaded_count = 0
-        for plugin_file in plugin_path.glob("*_plugin.py"):
-            if self.load_plugin(str(plugin_file)):
-                loaded_count += 1
+        for plugin_dir in plugin_dirs:
+            plugin_path = Path(plugin_dir)
+            if not plugin_path.exists():
+                print(f"⚠️ Plugin directory does not exist: {plugin_dir}")
+                continue
 
-        print(f"📦 Discovered {loaded_count} plugins in {plugin_dir}")
+            loaded_count = 0
+            for plugin_file in plugin_path.glob("*_plugin.py"):
+                if self.load_plugin(str(plugin_file)):
+                    loaded_count += 1
+
+            if loaded_count > 0:
+                print(f"📦 Discovered {loaded_count} plugins in {plugin_dir}")
+
+            total_loaded += loaded_count
+
+        print(f"✅ Total additional plugins loaded: {total_loaded}")
 
     def get_plugin(self, provider_name: str) -> Optional[BaseLLMPlugin]:
         """
@@ -371,7 +377,6 @@ def get_enhanced_llm_routing():
                 routing[f'{provider}_text'] = f"{provider}/text"
 
     return routing
-
 
 # NEW: Enhanced validation function
 def validate_enhanced_config():

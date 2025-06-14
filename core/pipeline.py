@@ -7,7 +7,7 @@ Orchestrates the entire document processing workflow with parallel execution
 import ipdb
 import time
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import threading
 from outputs.writers import OutputManager
@@ -22,7 +22,11 @@ from utils.progress import (
 from utils.validation import validate_input_and_files
 from outputs.writers import OutputWriter
 
-class ProcessingPipeline:
+class BaseProcessor:
+    def process_files(self, file_paths: List[str], args=None) -> Dict[str, Any]:
+        raise NotImplementedError
+
+class ProcessingPipeline(BaseProcessor):
     """
     Complete processing pipeline with parallel execution and fault tolerance
     """
@@ -111,6 +115,8 @@ class ProcessingPipeline:
                 results = self._process_full_pipeline(file_paths)
             elif self.config['mode'] == 'resume':
                 results = self._process_resume(file_paths)
+            elif selt.config['mode'] == 'direct_media':
+
             else:
                 raise ValueError(f"Unknown processing mode: {self.config['mode']}")
 
@@ -502,38 +508,44 @@ class ProcessingPipeline:
             print(f"⚠️ Error saving resume state: {e}")
 
     def cleanup_after_processing(self):
-
         """Clean up resources after processing completion"""
         if self.config.get('clear_cache_after_run', False):
             try:
-                from utils.cache import get_cache_stats, cleanup_cache
-
-                # Show before stats
-                before_stats = get_cache_stats()
-                print(f"🔍 Before cleanup: {before_stats.get('cache_entries', 0)} entries, {before_stats.get('total_size_mb', 0):.1f} MB")
-
-                # Try cleanup
-                cleanup_cache()
-
-                # Show after stats
-                after_stats = get_cache_stats()
-                print(f"🔍 After cleanup: {after_stats.get('cache_entries', 0)} entries, {after_stats.get('total_size_mb', 0):.1f} MB")
-
-                # If still has entries, force clear
-                if after_stats.get('cache_entries', 0) > 0:
-                    print("🔧 Cleanup didn't work, trying force clear...")
-                    from utils.cache import clear_cache
-                    clear_cache()
-
-                    final_stats = get_cache_stats()
-                    print(f"🔍 After force clear: {final_stats.get('cache_entries', 0)} entries")
-
+                result = self.perform_cache_cleanup(config=self.config, force_clear_if_needed=True)
                 print("🧹 Cache cleanup completed")
-
             except Exception as e:
                 print(f"❌ Cache cleanup error: {e}")
                 import traceback
                 traceback.print_exc()
+
+    def perform_cache_cleanup(config: Optional[Dict[str, Any]] = None, force_clear_if_needed: bool = False) -> Dict[str, Any]:
+        """Performs cache cleanup and optionally clears if cleanup didn't fully work."""
+        from utils.cache import get_cache_stats, cleanup_cache, clear_cache
+
+        print("🧹 Cleaning up cache...")
+
+        max_size_gb = config.get('max_cache_size', 5.0) if config else 5.0
+        max_age_days = config.get('max_cache_age', 30) if config else 30
+
+        before_stats = get_cache_stats()
+        print(f"🔍 Before cleanup: {before_stats.get('cache_entries', 0)} entries, {before_stats.get('total_size_mb', 0):.1f} MB")
+
+        cleanup_cache(max_size_gb, max_age_days)
+
+        after_stats = get_cache_stats()
+        print(f"🔍 After cleanup: {after_stats.get('cache_entries', 0)} entries, {after_stats.get('total_size_mb', 0):.1f} MB")
+
+        if force_clear_if_needed and after_stats.get('cache_entries', 0) > 0:
+            print("🔧 Cleanup didn't work, trying force clear...")
+            clear_cache()
+            final_stats = get_cache_stats()
+            print(f"🔍 After force clear: {final_stats.get('cache_entries', 0)} entries")
+
+        return {
+            'success': True,
+            'command': 'cache_cleanup'
+        }
+
 
 
     def _save_checkpoint(self, all_files: List[str], current_file: str):
@@ -573,12 +585,16 @@ class ProcessingPipeline:
         except Exception as e:
             print(f"⚠️  Error saving checkpoint: {e}")
 
-class PerformanceBenchmark:
+class PerformanceBenchmark(BaseProcessor):
     """Performance benchmarking for the processing pipeline"""
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.benchmark_results = {}
+
+
+    def process_files(self, file_paths: List[str], args=None) -> Dict[str, Any]:
+        return self.run_benchmark(file_paths)
 
     def run_benchmark(self, file_paths: List[str]) -> Dict[str, Any]:
         """Run performance benchmark on file processing"""
@@ -640,7 +656,7 @@ class PerformanceBenchmark:
             print(f"{threads:<8} {time_taken:<10.2f} {throughput:<10.2f} {speedup:<10}")
 
 
-class BatchProcessor:
+class BatchProcessor(BaseProcessor):
     """Batch processor for handling large numbers of files efficiently"""
 
     def __init__(self, config: Dict[str, Any]):
