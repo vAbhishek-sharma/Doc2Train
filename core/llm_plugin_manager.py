@@ -12,21 +12,26 @@ from plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
 from utils.plugin_loader import load_plugins_from_dirs
 
 class LLMPluginManager:
-    """
-    Manager for LLM provider plugins
-    """
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        """
+        Manager for LLM provider plugins.
+        """
+        # store passed-in config (may be None)
+        self.config = config or {}
 
-    def __init__(self):
-        # merge built-in + user dirs
+        # gather built-in + user-supplied plugin dirs
         plugin_dirs = [
-            Path(__file__).parent.parent/'plugins'/'llm_plugins',
-            *self.config.get('llm_plugin_dirs', [])
+            Path(__file__).parent.parent / "plugins" / "llm_plugins",
+            *self.config.get("llm_plugin_dirs", []),
         ]
+
+        # actually load all subclasses of BaseLLMPlugin
         self.plugins = load_plugins_from_dirs(
             plugin_dirs,
             BaseLLMPlugin,
-            entry_point_group="doc2train.llm_plugins"
+            pkg_prefix="plugins.llm_plugins",
         )
+
 
     def load_plugin(self, plugin_path: str) -> bool:
         try:
@@ -228,59 +233,6 @@ def call_llm_plugin(provider: str, prompt: str, task: str = 'general',
     else:
         return plugin.call_text_model(prompt, **kwargs)
 
-def process_media_directly(media_path: str, provider: str = None,
-                          prompt: str = None, **kwargs) -> str:
-    """
-    NEW: Process images/videos directly with LLM, skipping traditional processors
-
-    Args:
-        media_path: Path to image or video file
-        provider: LLM provider to use (auto-detect if None)
-        prompt: Optional prompt to guide analysis
-        **kwargs: Additional parameters
-
-    Returns:
-        LLM analysis of the media
-    """
-    if not Path(media_path).exists():
-        raise FileNotFoundError(f"Media file not found: {media_path}")
-
-    plugin_manager = get_plugin_manager()
-
-    # Auto-detect provider if not specified
-    if not provider:
-        # Find first available vision-capable provider
-        for provider_name in plugin_manager.get_available_providers():
-            plugin = plugin_manager.get_plugin(provider_name)
-            if plugin and plugin.capabilities['vision'] and plugin.validate_config():
-                provider = provider_name
-                break
-
-        if not provider:
-            # Fallback to built-in providers
-            provider_info = _get_vision_provider()
-            if provider_info:
-                # Use existing vision processing
-                with open(media_path, 'rb') as f:
-                    image_data = f.read()
-
-                image_data_dict = {
-                    'path': media_path,
-                    'data': image_data,
-                    'ocr_text': ''
-                }
-
-                default_prompt = prompt or "Analyze this image thoroughly and extract all relevant information including text, objects, scenes, and context."
-                return call_llm_vision(default_prompt, image_data_dict)
-            else:
-                raise Exception("No vision-capable providers available")
-
-    # Use plugin for direct processing
-    plugin = plugin_manager.get_plugin(provider)
-    if not plugin:
-        raise ValueError(f"Plugin not found for provider: {provider}")
-
-    return plugin.process_direct_media(media_path, prompt, **kwargs)
 
 def get_available_providers() -> List[str]:
     """

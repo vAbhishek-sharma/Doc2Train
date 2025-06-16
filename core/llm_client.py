@@ -360,6 +360,62 @@ def estimate_cost(text: str, task: str, provider: str = None) -> float:
     rate = cost_per_1k_tokens.get(provider, 0.0001)
     return (tokens / 1000) * rate
 
+
+def process_media_directly(media_path: str, provider: str = None,
+                          prompt: str = None, **kwargs) -> str:
+    """
+    NEW: Process images/videos directly with LLM, skipping traditional processors
+
+    Args:
+        media_path: Path to image or video file
+        provider: LLM provider to use (auto-detect if None)
+        prompt: Optional prompt to guide analysis
+        **kwargs: Additional parameters
+
+    Returns:
+        LLM analysis of the media
+    """
+    if not Path(media_path).exists():
+        raise FileNotFoundError(f"Media file not found: {media_path}")
+
+    plugin_manager = get_plugin_manager()
+
+    # Auto-detect provider if not specified
+    if not provider:
+        # Find first available vision-capable provider
+        for provider_name in plugin_manager.get_available_providers():
+            plugin = plugin_manager.get_plugin(provider_name)
+            if plugin and plugin.capabilities['vision'] and plugin.validate_config():
+                provider = provider_name
+                break
+
+        if not provider:
+            # Fallback to built-in providers
+            provider_info = _get_vision_provider()
+            if provider_info:
+                # Use existing vision processing
+                with open(media_path, 'rb') as f:
+                    image_data = f.read()
+
+                image_data_dict = {
+                    'path': media_path,
+                    'data': image_data,
+                    'ocr_text': ''
+                }
+
+                default_prompt = prompt or "Analyze this image thoroughly and extract all relevant information including text, objects, scenes, and context."
+                return call_llm_vision(default_prompt, image_data_dict)
+            else:
+                raise Exception("No vision-capable providers available")
+
+    # Use plugin for direct processing
+    plugin = plugin_manager.get_plugin(provider)
+    if not plugin:
+        raise ValueError(f"Plugin not found for provider: {provider}")
+
+    return plugin.process_direct_media(media_path, prompt, **kwargs)
+
+
 if __name__ == "__main__":
     # Test available providers
     print("Testing available providers...")

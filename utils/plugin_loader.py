@@ -1,57 +1,52 @@
-# utils/plugin_loader.py
-
 import importlib.util
-from importlib.metadata import entry_points
 from pathlib import Path
-from typing import Type
-from typing import Union, List, Dict
+from typing import Dict, List, Type, Union
+
 
 def load_plugins_from_dirs(
-    dirs: Union[List[Path], List[str]],
+    dirs: List[Union[str, Path]],
     base_class: Type,
-    entry_point_group: str
+    pkg_prefix: str,
 ) -> Dict[str, Type]:
     """
-    Scan filesystem dirs *and* setuptools entry-points for subclasses of `base_class`.
-    Returns a dict mapping plugin-name → plugin-class.
+    Load all plugins (subclasses of `base_class`) from the given directories,
+    using `pkg_prefix` as the dotted package name to anchor relative imports.
+
+    Args:
+        dirs: List of directory paths (str or Path) to search for plugin modules.
+        base_class: The base class that plugins must extend.
+        pkg_prefix: Dotted path for the package context (e.g. 'plugins.llm_plugins').
+
+    Returns:
+        A dict mapping plugin names to their classes.
     """
-    plugins: dict[str, Type] = {}
-
-    # 1) Filesystem scan
-    for d in dirs:
-        p = Path(d)
-        if not p.exists():
+    plugins: Dict[str, Type] = {}
+    for directory in dirs:
+        p = Path(directory)
+        if not p.exists() or not p.is_dir():
             continue
-        for file in p.glob("*_plugin.py"):
-            spec = importlib.util.spec_from_file_location(file.stem, file)
+        for file in p.glob("*.py"):
+            if file.name.startswith("_"):
+                # skip private or special modules
+                continue
+            module_name = f"{pkg_prefix}.{file.stem}"
+            spec = importlib.util.spec_from_file_location(
+                module_name,
+                file,
+                submodule_search_locations=[str(p)]
+            )
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)  # type: ignore
-            for attr in dir(module):
-                cls = getattr(module, attr)
+            try:
+                spec.loader.exec_module(module)  # type: ignore
+            except Exception as e:
+                raise ImportError(f"Failed to load plugin {module_name}: {e}")
+            for attribute_name in dir(module):
+                attribute = getattr(module, attribute_name)
                 if (
-                    isinstance(cls, type)
-                    and issubclass(cls, base_class)
-                    and cls is not base_class
+                    isinstance(attribute, type)
+                    and issubclass(attribute, base_class)
+                    and attribute is not base_class
                 ):
-                    name = attr.lower().replace("plugin", "")
-                    plugins[name] = cls
-
-    # 2) setuptools‐style entry points via importlib.metadata
-    eps = entry_points()
-    # Python 3.10+ API:
-    matched = eps.select(group=entry_point_group) if hasattr(eps, "select") \
-              else eps.get(entry_point_group, [])
-
-    for ep in matched:
-        try:
-            cls = ep.load()
-        except Exception:
-            continue
-        if (
-            isinstance(cls, type)
-            and issubclass(cls, base_class)
-            and cls is not base_class
-        ):
-            plugins[ep.name] = cls
-
+                    plugin_name = getattr(attribute, "name", attribute.__name__)
+                    plugins[plugin_name] = attribute
     return plugins

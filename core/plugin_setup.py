@@ -1,55 +1,41 @@
-# core/plugin_setup.py
+"""
+core/plugin_setup.py
 
-from pathlib import Path
-import sys
-import os
-from utils.plugin_loader import load_plugins_from_dirs
+Central orchestration for discovering and registering all plugin types via their managers.
+"""
 
-# Import base classes directly
-from plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin, register_llm_plugin
-from processors.base_processor import BaseProcessor, register_processor
-from outputs.base_writer import BaseWriter, register_writer
-from outputs.base_formatters import BaseFormatter, register_formatter
+from core.llm_plugin_manager import LLMPluginManager
+from processors.processor_plugin_manager import ProcessorPluginManager
+from outputs.writer_plugin_manager import WriterPluginManager
+from outputs.formatter_plugin_manager import FormatterPluginManager
 
-import ipdb
+from plugins.llm_plugins.base_llm_plugin import register_llm_plugin
+from processors.base_processor import register_processor
+from outputs.base_writer import register_writer
+from outputs.base_formatters import register_formatter
 
-def set_plugins(config):
-    ipdb.set_trace()
+
+def set_plugins(config: dict):
     """
-    Discover & register LLM, Processor, Writer, and Formatter plugins in one place.
+    Discover & register LLM, Processor, Writer, and Formatter plugins using
+    their respective PluginManager classes.
     """
-    # 1) LLM plugins
-    llm_dirs = [
-        Path(__file__).parent.parent / 'plugins' / 'llm_plugins',
-        *config.get('llm_plugin_dirs', [])
-    ]
-    llm_eps = "doc2train.llm_plugins"
-    for name, cls in load_plugins_from_dirs(llm_dirs, BaseLLMPlugin, llm_eps).items():
+    # — LLM plugins —
+    llm_mgr = LLMPluginManager(config)
+    for name, cls in llm_mgr.plugins.items():
         register_llm_plugin(name, cls)
 
-    # 2) Processor plugins
-    proc_dirs = [
-        Path(__file__).parent.parent / 'processors_plugin',
-        *config.get('processor_plugin_dirs', [])
-    ]
-    proc_eps = "doc2train.processor_plugins"
-    for name, cls in load_plugins_from_dirs(proc_dirs, BaseProcessor, proc_eps).items():
+    # — Processor plugins —
+    proc_mgr = ProcessorPluginManager(config)
+    for name, cls in proc_mgr.plugins.items():
         register_processor(name, cls)
 
-    # 3) Writer plugins
-    writer_dirs = [
-        Path(__file__).parent.parent / 'outputs' / 'writer_plugins',
-        *config.get('writer_plugin_dirs', [])
-    ]
-    writer_eps = "doc2train.writer_plugins"
-    for name, cls in load_plugins_from_dirs(writer_dirs, BaseWriter, writer_eps).items():
+    # — Writer plugins —
+    writer_mgr = WriterPluginManager(config)
+    for name, cls in writer_mgr.plugins.items():
         register_writer(name, cls)
 
-    # 4) Formatter plugins
-    fmt_dirs = [
-        Path(__file__).parent.parent / 'outputs' / 'formatter_plugins',
-        *config.get('formatter_plugin_dirs', [])
-    ]
-    fmt_eps = "doc2train.formatter_plugins"
-    for name, cls in load_plugins_from_dirs(fmt_dirs, BaseFormatter, fmt_eps).items():
+    # — Formatter plugins —
+    fmt_mgr = FormatterPluginManager(config)
+    for name, cls in fmt_mgr.plugins.items():
         register_formatter(name, cls)

@@ -1,6 +1,6 @@
 # plugins/processors/custom_video_processor.py
 from processors.base_processor import BaseProcessor
-from core.llm_plugin_manager import process_media_directly
+from core.llm_client import process_media_directly
 
 class VideoProcessor(BaseProcessor):
     """Custom video processor using direct LLM analysis"""
