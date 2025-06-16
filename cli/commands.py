@@ -16,7 +16,6 @@ from outputs.writers import OutputManager
 
 def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
     """Execute the main processing command with all enhancements"""
-
     # Handle special commands first
     if config.get('validate_only'):
         return execute_validate_command(config, file_paths)

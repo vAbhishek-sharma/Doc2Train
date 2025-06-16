@@ -11,6 +11,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import threading
 from outputs.writers import OutputManager
+from utils.resource_manager import resource_manager
+import os
 
 from processors.base_processor import get_processor_for_file, discover_plugins
 from core.generator import generate_training_data
@@ -20,8 +22,7 @@ from utils.progress import (
     add_processing_error, update_progress_display, show_completion_summary
 )
 from utils.validation import validate_input_and_files
-from outputs.writers import OutputWriter
-
+from utils.process import ProcessManager
 class BaseProcessor:
     def process_files(self, file_paths: List[str], args=None) -> Dict[str, Any]:
         raise NotImplementedError
@@ -47,7 +48,14 @@ class ProcessingPipeline(BaseProcessor):
             'stop_reason': ''  # NEW: Reason for stopping
         }
         self.start_time = None  # NEW: Track processing start time
+        self.use_resource_limits = config.get("use_resource_limits", True)  # ADDED
+
         self.output_manager = OutputManager(config)
+        if 'threads' not in self.config or not self.config['threads']:
+            self.config['threads'] = resource_manager.get_optimal_workers(
+                self.stats.get('files_total', 1)
+            )
+
         self._setup_pipeline()
 
     def _should_auto_stop(self) -> Tuple[bool, str]:
@@ -84,7 +92,7 @@ class ProcessingPipeline(BaseProcessor):
             if not providers:
                 print("⚠️ Warning: No LLM providers available for generation")
 
-    def process_files(self, file_paths: List[str], args) -> Dict[str, Any]:
+    def process_files(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process multiple files with complete pipeline
 
@@ -108,15 +116,15 @@ class ProcessingPipeline(BaseProcessor):
 
         try:
             if self.config['mode'] == 'extract-only':
-                results = self._process_extraction_only(file_paths)
+                results = self._process_extraction_only(file_paths, config)
             elif self.config['mode'] == 'generate':
-                results = self._process_with_generation(file_paths)
+                results = self._process_with_generation(file_paths, config)
             elif self.config['mode'] == 'full':
-                results = self._process_full_pipeline(file_paths)
+                results = self._process_full_pipeline(file_paths, config)
             elif self.config['mode'] == 'resume':
-                results = self._process_resume(file_paths)
-            elif selt.config['mode'] == 'direct_media':
-
+                results = self._process_resume(file_paths,config)
+            elif self.config['mode'] == 'direct_to_llm':
+                results = self._process_media_directly(file_paths,config)
             else:
                 raise ValueError(f"Unknown processing mode: {self.config['mode']}")
 
@@ -159,7 +167,7 @@ class ProcessingPipeline(BaseProcessor):
                 'failed': self.stats['files_failed']
             }
 
-    def _process_extraction_only(self, file_paths: List[str]) -> Dict[str, Any]:
+    def _process_extraction_only(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
         """Process files in extraction-only mode"""
         print("📄 Extraction-only mode: Processing documents...")
 
@@ -168,7 +176,7 @@ class ProcessingPipeline(BaseProcessor):
         else:
             return self._process_files_sequential(file_paths, self._extract_single_file)
 
-    def _process_with_generation(self, file_paths: List[str]) -> Dict[str, Any]:
+    def _process_with_generation(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
         """Process files with LLM generation"""
         print("🤖 Generation mode: Extracting and generating training data...")
 
@@ -177,7 +185,7 @@ class ProcessingPipeline(BaseProcessor):
         else:
             return self._process_files_sequential(file_paths, self._extract_and_generate_single_file)
 
-    def _process_full_pipeline(self, file_paths: List[str]) -> Dict[str, Any]:
+    def _process_full_pipeline(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
         """Process files with full pipeline (extraction + generation + vision)"""
         print("🚀 Full pipeline: Complete processing with all features...")
 
@@ -190,7 +198,7 @@ class ProcessingPipeline(BaseProcessor):
         else:
             return self._process_files_sequential(file_paths, self._extract_and_generate_single_file)
 
-    def _process_resume(self, file_paths: List[str]) -> Dict[str, Any]:
+    def _process_resume(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
         """Resume processing from checkpoint"""
         print("🔄 Resume mode: Continuing from previous session...")
 
@@ -233,6 +241,8 @@ class ProcessingPipeline(BaseProcessor):
         # Now generate training data from extracted content
         return self._process_with_generation(file_paths)
 
+    def _process_media_directly(self, file_paths:List[str], config: Dict[str, Any])->Dict[str,Any]:
+        pass
 
     def _process_files_parallel(self, file_paths: List[str], process_func) -> Dict[str, Any]:
         """Process files in parallel using ThreadPoolExecutor"""
@@ -264,7 +274,8 @@ class ProcessingPipeline(BaseProcessor):
 
                     if result['success']:
                         self._save_file_result_immediately(file_path, result)
-
+                        if self.config.get('save_per_file'):
+                            self._save_per_file_result(file_path, result)
                     update_progress_display()
 
                 except Exception as e:
@@ -288,7 +299,8 @@ class ProcessingPipeline(BaseProcessor):
                 # NEW: Save immediately after each file is processed
                 if result['success']:
                     self._save_file_result_immediately(file_path, result)
-
+                    if self.config.get('save_per_file'):
+                        self._save_per_file_result(file_path, result)
                 # Force progress display update
                 update_progress_display()
 
@@ -303,6 +315,15 @@ class ProcessingPipeline(BaseProcessor):
         file_name = Path(file_path).name
         start_time = time.time()
         print(f"Initiate the extraction process: {file_name}")
+        if self.config.get("use_resource_limits", True):
+            file_size = os.path.getsize(file_path)
+            if not resource_manager.can_process_file(file_size):
+                return {
+                    'success': False,
+                    'file_path': file_path,
+                    'file_name': file_name,
+                    'error': f"File too large to process safely ({file_size} bytes)"
+                }
         try:
             # Get appropriate processor
             processor = get_processor_for_file(file_path, self.config)

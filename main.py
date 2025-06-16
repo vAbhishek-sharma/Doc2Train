@@ -22,8 +22,10 @@ from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from datetime import datetime
-from utils.config_loader import get_config_loader
+from utils.config_loader import get_config_loader, validate_config
 from cli.commands import execute_discover_llm_plugins_command, execute_list_providers_command, route_command
+from core.plugin_setup import set_plugins
+
 import ipdb
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -41,7 +43,7 @@ try:
     from utils.config import *  # Import all config variables
     from cli.commands import execute_processing_command
     # Import CLI components
-    from cli.args import create_enhanced_parser, parse_skip_pages, args_to_config, validate_args
+    from cli.args import create_enhanced_parser, parse_skip_pages, args_to_config
 
     # Import output handling
     from outputs.writers import OutputWriter
@@ -91,7 +93,6 @@ def main():
             return 0
 
         # Validate arguments
-        validate_args(args)
 
         #merge args and config file into single config param
         config_file = getattr(args, 'config_file', 'config.yaml')
@@ -103,6 +104,13 @@ def main():
         else:
             config = args_to_config(args)
 
+        # 1) Validate the merged CLI+YAML config
+        validate_config(config)
+
+        # 2) Discover & register **all** plugins (LLM, Processor, Writer, Formatter)
+        set_plugins(config)
+
+        # 3) Now handle any plugin-related commands (list, discover, etc.)
         handle_plugin_commands(config)
         # 3. Handle resume logic (may need merged config)
         if config.get('resume_from_checkpoint'):
@@ -132,19 +140,19 @@ def main():
 
         #To rename later
         # Validate input and get files (keep existing logic)
-        if not validate_input_and_files(args):
-            return 1
+        # TO DO: Need to confirm if its holds value here in the flow?
+        # if not validate_input_and_files(config):
+        #     return 1
 
         # Get supported files
         #TO UPDATE: To add support for files from plugin processor folder
-        supported_files = get_supported_files(args.input_path)
+        supported_files = get_supported_files(config.get('input_path'))
         if not supported_files:
-            print(f"❌ Error: No supported files found in '{args.input_path}'")
+            print(f"❌ Error: No supported files found in '{config.get('input_path')}'")
             print(f"Supported extensions: {supported_files}")
             return 1
 
         # Set input path in config
-        config['input_path'] = args.input_path
 
         # Limit files in test mode
         if config.get('test_mode'):
@@ -152,7 +160,7 @@ def main():
             print(f"🧪 Test mode: Processing only {len(supported_files)} files")
 
         # Show processing plan
-        show_processing_plan_enhanced(args, supported_files, config)
+        show_processing_plan_enhanced(config, supported_files)
 
         # Perform dry run if requested
         if config.get('dry_run'):
@@ -172,9 +180,6 @@ def main():
         progress_display.set_show_progress(config.get('show_progress', True))
 
         results = route_command(config, supported_files)
-        # Execute enhanced processing
-        # pipeline = ProcessingPipeline(config)
-        # results = pipeline.process_files(supported_files, args)
 
         # NEW: Check if processing was auto-stopped
         if results.get('auto_stopped', False):
@@ -185,11 +190,11 @@ def main():
                 print(f"🔄 To continue: python main.py --resume-from-checkpoint {checkpoint_file}")
 
             # Show partial results
-            show_results(results, args, config)
+            show_results(results, config )
             return 2  # Special exit code for auto-stop
         else:
             # Show enhanced results
-            show_results(results, args, config)
+            show_results(results, config)
             return 0 if results.get('success', True) else 1
 
     except KeyboardInterrupt:
@@ -228,67 +233,74 @@ def main():
         return 1
 
 
-def show_processing_plan_enhanced(args, files: List[str], config: Dict):
+def show_processing_plan_enhanced(config: Dict, files: List[str]):
     """Show enhanced processing plan"""
 
     print(f"\n📋 Enhanced Processing Plan:")
-    print(f"   Mode: {args.mode}")
+    print(f"   Mode: {config.get('mode', 'N/A')}")
     print(f"   Files: {len(files)}")
-    print(f"   Threads: {args.threads}")
-    print(f"   Output: {args.output_dir}")
+    print(f"   Threads: {config.get('threads', 'N/A')}")
+    print(f"   Output: {config.get('output_dir', 'output')}")
 
     # Page control
-    if args.start_page > 1 or args.end_page:
-        page_range = f"{args.start_page}"
-        if args.end_page:
-            page_range += f"-{args.end_page}"
+    start_page = config.get('start_page', 1)
+    end_page = config.get('end_page', None)
+    if start_page > 1 or end_page:
+        page_range = f"{start_page}"
+        if end_page:
+            page_range += f"-{end_page}"
         else:
             page_range += "-end"
         print(f"   Page range: {page_range}")
 
-    if args.skip_pages:
-        print(f"   Skip pages: {args.skip_pages}")
+    skip_pages = config.get('skip_pages', [])
+    if skip_pages:
+        print(f"   Skip pages: {', '.join(map(str, skip_pages))}")
 
     # Quality filters
     quality_filters = []
-    if args.min_image_size > 1000:
-        quality_filters.append(f"images ≥{args.min_image_size}px")
-    if args.min_text_length > MIN_TEXT_LENGTH:
-        quality_filters.append(f"text ≥{args.min_text_length} chars")
-    if args.skip_single_color_images:
+    if config.get('min_image_size', 1000) > 1000:
+        quality_filters.append(f"images ≥{config['min_image_size']}px")
+    if config.get('min_text_length', 100) > 100:
+        quality_filters.append(f"text ≥{config['min_text_length']} chars")
+    if config.get('skip_single_color_images'):
         quality_filters.append("skip solid colors")
-    if args.header_regex:
-        quality_filters.append(f"header regex: {args.header_regex}")
+    if config.get('header_regex'):
+        quality_filters.append(f"header regex: {config['header_regex']}")
 
     if quality_filters:
         print(f"   Quality filters: {', '.join(quality_filters)}")
 
     # Performance options
     performance_opts = []
-    if args.save_per_file:
+    if config.get('save_per_file'):
         performance_opts.append("save per file")
-    if args.show_progress:
+    if config.get('show_progress'):
         performance_opts.append("real-time progress")
-    if args.show_images:
+    if config.get('show_images'):
         performance_opts.append("show images")
 
     if performance_opts:
         print(f"   Options: {', '.join(performance_opts)}")
 
-    if args.mode != 'extract-only':
-        print(f"   Generators: {', '.join(args.type)}")
+    # Generators
+    if config.get('mode') != 'extract-only':
+        generators = config.get('generators', [])
+        if generators:
+            print(f"   Generators: {', '.join(generators)}")
 
         # Estimate costs
         try:
             from core.llm_client import estimate_cost
             total_size = sum(Path(f).stat().st_size for f in files)
-            total_text = total_size // 2  # Rough text estimate
+            total_text = total_size // 2  # Rough estimate
             estimated_cost = estimate_cost(" " * total_text, 'general')
             print(f"   Estimated cost: ${estimated_cost:.4f}")
-        except:
+        except Exception:
             pass
 
-    if args.include_vision:
+    # Vision
+    if config.get('include_vision'):
         print(f"   Vision processing: enabled")
 
     print()
@@ -347,16 +359,18 @@ def perform_enhanced_dry_run(files: List[str], config: Dict):
     print(f"   Threads: {threads}")
     print("Use without --dry-run to actually process files")
 
-def show_results(results: Dict[str, Any], args, config: Dict):
+def show_results(results: Dict[str, Any], config: Dict):
     """Display enhanced processing results"""
 
     print(f"\n🎉 Processing completed!")
 
+    # Timing summary
     if 'total_processing_time' in results:
         total_time = results['total_processing_time']
         print(f"⏱️ Total time: {format_time(total_time)}")
 
-    print(f"📁 Output directory: {results.get('output_dir', args.output_dir)}")
+    # Basic file summary
+    print(f"📁 Output directory: {results.get('output_dir', config.get('output_dir', 'output'))}")
     print(f"📄 Files processed: {results.get('files_processed', 0)}")
     print(f"✅ Successful: {results.get('successful', 0)}")
 
@@ -368,12 +382,12 @@ def show_results(results: Dict[str, Any], args, config: Dict):
         avg_time = results['total_processing_time'] / results['files_processed']
         print(f"📊 Average time per file: {avg_time:.1f}s")
 
-        if args.threads > 1:
+        if config.get('threads', 1) > 1:
             sequential_estimate = avg_time * results['files_processed']
             speedup = sequential_estimate / results['total_processing_time']
             print(f"🚀 Threading speedup: {speedup:.1f}x")
 
-    # Content statistics
+    # Content stats
     if results.get('total_text_chars', 0) > 0:
         print(f"\n📝 Content Statistics:")
         print(f"   Text extracted: {results['total_text_chars']:,} characters")
@@ -386,27 +400,33 @@ def show_results(results: Dict[str, Any], args, config: Dict):
 
     # Configuration summary
     print(f"\n⚙️ Configuration Used:")
-    print(f"   Threads: {args.threads}")
-    if hasattr(args, 'start_page') and (args.start_page > 1 or args.end_page):
-        page_range = f"{args.start_page}-{args.end_page or 'end'}"
+    print(f"   Threads: {config.get('threads', 'N/A')}")
+
+    start_page = config.get('start_page', 1)
+    end_page = config.get('end_page')
+    if start_page > 1 or end_page:
+        page_range = f"{start_page}-{end_page or 'end'}"
         print(f"   Page range: {page_range}")
-    if hasattr(args, 'skip_pages') and args.skip_pages:
-        print(f"   Skipped pages: {args.skip_pages}")
 
-    print(f"   Quality filters: min_image={args.min_image_size}px, min_text={args.min_text_length} chars")
+    skip_pages = config.get('skip_pages', [])
+    if skip_pages:
+        print(f"   Skipped pages: {', '.join(map(str, skip_pages))}")
 
-    if args.save_per_file:
+    print(f"   Quality filters: min_image={config.get('min_image_size', 1000)}px, min_text={config.get('min_text_length', 100)} chars")
+
+    if config.get('save_per_file'):
         print(f"   ✅ Per-file saving enabled (fault-tolerant)")
 
-    # Show errors if any
+    # Recent errors
     if results.get('errors'):
         print(f"\n⚠️ Errors encountered:")
         for error in results['errors'][-3:]:  # Show last 3 errors
             print(f"   ❌ {error.get('file', 'Unknown')}: {error.get('error', 'Unknown error')}")
 
-    # Show next steps
+    # Next steps
     print(f"\n💡 Next Steps:")
-    if args.mode == 'extract-only':
+    mode = config.get('mode', 'extract-only')
+    if mode == 'extract-only':
         print("   - Review extracted text files")
         print("   - Run with --mode generate to create training data")
     else:
@@ -414,8 +434,8 @@ def show_results(results: Dict[str, Any], args, config: Dict):
         print("   - Use for fine-tuning your AI models")
         print("   - Consider adjusting quality thresholds if needed")
 
-    if args.save_per_file:
-        print(f"   - Individual file results saved in: {args.output_dir}/per_file/")
+    if config.get('save_per_file'):
+        print(f"   - Individual file results saved in: {config.get('output_dir', 'output')}/per_file/")
 
     print(f"\n📖 Documentation: Check README.md for advanced usage examples")
 
@@ -430,7 +450,7 @@ def format_time(seconds: float) -> str:
         minutes = (seconds % 3600) // 60
         return f"{hours:.0f}h {minutes:.0f}m"
 
-
+#To refactor  # to add replace it inside the pipeline as its should be mode
 def resume_from_checkpoint(checkpoint_file: str, args) -> int:
     """Resume processing from a checkpoint file"""
     try:
@@ -494,6 +514,7 @@ def resume_from_checkpoint(checkpoint_file: str, args) -> int:
         traceback.print_exc()
         return 1
 
+#TO refactor
 # NEW: Add config display function
 def show_current_config():
     """Show current configuration"""
@@ -522,6 +543,7 @@ def show_current_config():
     except Exception as e:
         print(f"❌ Error displaying config: {e}")
 
+#TO refactor
 # NEW: Add config saving function
 def save_config_from_args(args):
     """Save current args as config file"""
@@ -553,9 +575,10 @@ def handle_plugin_commands(config) -> bool:
     """
     # List providers
         # Discover plugins
-    if config.get('discover_plugins', True):
-        execute_discover_llm_plugins_command(config)
-        return True
+    #TO BE DELETED
+    # if config.get('discover_plugins', True):
+    #     execute_discover_llm_plugins_command(config)
+    #     return True
 
     if config.get('list_providers', True):
 
@@ -578,6 +601,7 @@ def handle_plugin_commands(config) -> bool:
 
     return False
 
+#to remove
 def handle_direct_media_processing(args) -> bool:
     """
     NEW: Handle direct media processing
@@ -594,6 +618,7 @@ def handle_direct_media_processing(args) -> bool:
 
     return False
 
+#to remove
 def setup_plugins(config: Dict[str, Any]):
     """
     NEW: Setup and discover plugins based on configuration

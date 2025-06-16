@@ -8,39 +8,10 @@ import json
 import csv
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Type
 from abc import ABC, abstractmethod
 
-class BaseFormatter(ABC):
-    """Base class for all output formatters"""
-
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.format_name = "base"
-
-    @abstractmethod
-    def format_conversations(self, conversations: List[Dict]) -> str:
-        """Format conversation data"""
-        pass
-
-    @abstractmethod
-    def format_qa_pairs(self, qa_pairs: List[Dict]) -> str:
-        """Format Q&A pairs data"""
-        pass
-
-    @abstractmethod
-    def format_embeddings(self, embeddings: List[Dict]) -> str:
-        """Format embedding pairs data"""
-        pass
-
-    @abstractmethod
-    def format_summaries(self, summaries: List[Dict]) -> str:
-        """Format summary data"""
-        pass
-
-    def get_file_extension(self) -> str:
-        """Get file extension for this format"""
-        return ".txt"
+from outputs.base_formatters import BaseFormatter
 
 class JSONLFormatter(BaseFormatter):
     """JSONL (JSON Lines) formatter - one JSON object per line"""

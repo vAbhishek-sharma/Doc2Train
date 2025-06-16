@@ -1,4 +1,3 @@
-# utils/__init__.py
 """
 Complete utilities package for Doc2Train v2.0 Enhanced
 All utility modules for enterprise document processing
@@ -11,7 +10,6 @@ from .progress import (
     add_processing_error, update_progress_display, show_completion_summary,
     get_processing_stats, get_performance_report
 )
-
 
 # Validation utilities
 from .validation import (
@@ -34,6 +32,17 @@ from .files import (
     backup_file, validate_file_permissions, ensure_directory_exists,
     get_file_encoding, list_files_with_info, cleanup_temp_files
 )
+
+# Config loader
+from .config_loader import (
+    ConfigLoader,
+    get_config_loader,
+    load_config_from_yaml,
+    validate_config
+)
+
+# Plugin loader
+from .plugin_loader import load_plugins_from_dirs
 
 # Process management
 from .process import (
@@ -63,6 +72,12 @@ __all__ = [
     'cleanup_empty_directories', 'get_directory_size', 'find_files_by_pattern',
     'backup_file', 'validate_file_permissions', 'ensure_directory_exists',
     'get_file_encoding', 'list_files_with_info', 'cleanup_temp_files',
+
+    # Config loader
+    'ConfigLoader', 'get_config_loader', 'load_config_from_yaml', 'validate_config',
+
+    # Plugin loader
+    'load_plugins_from_dirs',
 
     # Process management
     'ProcessManager', 'SystemMonitor', 'TaskQueue', 'ProcessLimiter', 'GracefulShutdown',

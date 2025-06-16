@@ -1,3 +1,4 @@
+# TO REUPDATE
 # NEW: doc2train/cli.py - Enhanced CLI Entry Point
 """
 Enhanced CLI entry point for pip-installed package
@@ -79,11 +80,6 @@ Commands:
         print("Python package for converting documents to AI training data")
         return
 
-    # Require input for processing
-    if not args.input_path:
-        parser.print_help()
-        return
-
     # Import processing functionality
     try:
         from .main import ProcessingPipeline
@@ -98,7 +94,7 @@ Commands:
         mode = 'generate'
         generators = ['conversations', 'qa_pairs']
     elif args.analyze:
-        mode = 'direct_media'
+        mode = 'direct_to_llm'
         generators = []
     elif args.summary:
         mode = 'generate'

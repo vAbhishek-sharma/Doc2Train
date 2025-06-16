@@ -2,8 +2,8 @@
 # Edit this file to customize all aspects of document processing
 
 # Basic Settings
-mode: "extract-only"  # extract-only, generate, full, resume, analyze
-input_path: ""  # Will be set by command line
+mode: "extract-only"  # extract-only, generate, full, resume, analyze, direct_to_llm
+input_path: "input"  # Will be set by command line if not provided
 output_dir: "output"
 output_format: ["jsonl", "json"] # jsonl, json, csv, txt
 
@@ -138,7 +138,7 @@ debug:
 
 # Advanced Settings
 advanced:
-  plugin_dir: ""
+  llm_plugin_dir: ""
   resume_from: ""
   clear_cache_after: true
 

@@ -182,10 +182,11 @@ class ConfigLoader:
         """Get flattened config for processing pipeline"""
         return {
             # Basic settings
+
             'mode': self.get('mode'),
             'output_dir': self.get('output_dir'),
             'output_format': self.get('output_format'),
-
+            'input_path': self.get('input_path'),
             # Processing settings
             'use_async': self.get('processing.use_async'),
             'threads': self.get('processing.threads'),
@@ -299,3 +300,54 @@ def load_config_from_yaml(config_file: str = "config.yaml") -> Dict[str, Any]:
     """Load configuration and return processing config"""
     loader = get_config_loader(config_file)
     return loader.get_processing_config()
+
+
+def validate_config(config: Dict[str, Any]) -> bool:
+    errors = []
+
+    if not Path(config['input_path']).exists():
+        errors.append(f"Input path does not exist: {config['input_path']}")
+
+    if config['start_page'] < 1:
+        errors.append(f"start_page must be >= 1, got {config['start_page']}")
+
+    if config['end_page'] and config['end_page'] < config['start_page']:
+        errors.append(f"end_page ({config['end_page']}) must be >= start_page ({config['start_page']})")
+
+    if config['threads'] < 1 or config['threads'] > 64:
+        errors.append(f"threads must be between 1 and 64, got {config['threads']}")
+
+    if config['max_workers'] < 1 or config['max_workers'] > 32:
+        errors.append(f"max_workers must be between 1 and 32, got {config['max_workers']}")
+
+    if config['min_image_size'] < 0:
+        errors.append(f"min_image_size must be >= 0, got {config['min_image_size']}")
+
+    if config['min_text_length'] < 0:
+        errors.append(f"min_text_length must be >= 0, got {config['min_text_length']}")
+
+    if not 0.0 <= config['quality_threshold'] <= 1.0:
+        errors.append(f"quality_threshold must be between 0.0 and 1.0, got {config['quality_threshold']}")
+
+    if config['chunk_size'] < 100:
+        errors.append(f"chunk_size must be >= 100, got {config['chunk_size']}")
+
+    if config['overlap'] < 0 or config['overlap'] >= config['chunk_size']:
+        errors.append(f"overlap must be >= 0 and < chunk_size, got {config['overlap']}")
+
+    if config['timeout'] < 10:
+        errors.append(f"timeout must be >= 10 seconds, got {config['timeout']}")
+
+    if config['mode'] in ['generate', 'full']:
+        if config['provider'] == 'local' and not config['model']:
+            errors.append("Local provider requires model to be specified")
+
+    if config['mode'] == 'analyze':
+        input_path = Path(config['input_path'])
+        if input_path.is_file() and input_path.suffix.lower() != '.pdf':
+            errors.append("Analyze mode supports only PDF files")
+
+    if errors:
+        raise ValueError("❌ Config validation failed:\n" + "\n".join(f"  • {e}" for e in errors))
+
+    return True

@@ -8,9 +8,9 @@ import re
 import os
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-
+import ipdb
 #TO RENAME LATER
-def validate_input_and_files(args) -> bool:
+def validate_input_and_files(config) -> bool:
     """
     Enhanced input validation with detailed error reporting
 
@@ -24,9 +24,10 @@ def validate_input_and_files(args) -> bool:
     warnings = []
 
     # Validate input path
-    input_path = Path(args.input_path)
+    input_path = Path(config.get('input_path'))
+    ipdb.set_trace()
     if not input_path.exists():
-        errors.append(f"Input path does not exist: {args.input_path}")
+        errors.append(f"Input path does not exist: {config.get('input_path')}")
     else:
         # Check if it's a file or directory
         if input_path.is_file():
@@ -36,16 +37,16 @@ def validate_input_and_files(args) -> bool:
             # Check if directory has any supported files
             supported_files = find_supported_files(str(input_path))
             if not supported_files:
-                errors.append(f"No supported files found in directory: {args.input_path}")
+                errors.append(f"No supported files found in directory: {config.get('input_path')}")
             elif len(supported_files) > 1000:
                 warnings.append(f"Large number of files detected: {len(supported_files)}. Consider using batch processing.")
 
     # Validate output directory
-    output_dir = Path(args.output_dir)
+    output_dir = Path(config.get('output_dir'))
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
     except Exception as e:
-        errors.append(f"Cannot create output directory {args.output_dir}: {e}")
+        errors.append(f"Cannot create output directory {config.get('output_dir')}: {e}")
 
     # Check disk space
     if output_dir.exists():
@@ -54,8 +55,8 @@ def validate_input_and_files(args) -> bool:
             warnings.append(f"Low disk space: {free_space_in_gigabytes:.1f}GB available")
 
     # Validate LLM requirements for generation modes
-    if args.mode in ['generate', 'full']:
-        llm_errors = validate_llm_configuration(args)
+    if config.get('mode') in ['generate', 'full', 'direct_to_llm']:
+        llm_errors = validate_llm_configuration(config)
         errors.extend(llm_errors)
 
     # Show validation results
@@ -73,7 +74,7 @@ def validate_input_and_files(args) -> bool:
     print("✅ Input validation passed")
     return True
 
-def validate_llm_configuration(args) -> List[str]:
+def validate_llm_configuration(config) -> List[str]:
     """Validate LLM configuration for generation modes"""
     errors = []
 
@@ -87,8 +88,8 @@ def validate_llm_configuration(args) -> List[str]:
             print(f"✅ Available LLM providers: {', '.join(providers)}")
 
             # Validate specific provider if requested
-            if args.provider and args.provider not in providers:
-                errors.append(f"Requested provider '{args.provider}' not available")
+        if config.get('provider') and config['provider'] not in providers:
+            errors.append(f"Requested provider '{config['provider']}' not available")
 
     except ImportError:
         errors.append("LLM client not available")
@@ -334,7 +335,7 @@ def validate_configuration(config: Dict[str, Any]) -> List[str]:
             errors.append(f"Missing required configuration: {field}")
 
     # Validate mode
-    valid_modes = ['extract-only', 'generate', 'full', 'resume']
+    valid_modes = ['extract-only', 'generate', 'full', 'resume', 'direct_to_llm']
     if config.get('mode') not in valid_modes:
         errors.append(f"Invalid mode: {config.get('mode')}. Must be one of {valid_modes}")
 

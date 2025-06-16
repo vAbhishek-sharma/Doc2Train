@@ -13,7 +13,8 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Doc2Train v2.0 Enhanced - Enterprise document processing with Smart PDF Analysis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=get_examples_text()
+        epilog=get_examples_text(),
+        argument_default=argparse.SUPPRESS
     )
 
     # Required arguments
@@ -25,9 +26,8 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     # Processing mode - NOW INCLUDES ANALYZE MODE
     parser.add_argument(
         '--mode',
-        choices=['extract-only', 'generate', 'full', 'resume', 'analyze'],
-        default='extract-only',
-        help='Processing mode (default: extract-only). Use "analyze" for PDF content analysis only.'
+        choices=['extract-only', 'generate', 'full', 'resume', 'analyze', 'direct_to_llm'],
+        help='Processing mode . Use "analyze" for PDF content analysis only.'
     )
 
     # Generation types
@@ -35,8 +35,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         '--type',
         nargs='+',
         choices=['conversations', 'embeddings', 'qa_pairs', 'summaries'],
-        default=['conversations'],
-        help='Types of training data to generate (default: conversations)'
+        help='Types of training data to generate '
     )
 
     # Enhanced page control features
@@ -44,13 +43,12 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     page_group.add_argument(
         '--start-page',
         type=int,
-        default=1,
-        help='Start processing from this page (default: 1)'
+        help='Start processing from this page '
     )
     page_group.add_argument(
         '--end-page',
         type=int,
-        help='Stop processing at this page (default: last page)'
+        help='Stop processing at this page '
     )
     page_group.add_argument(
         '--skip-pages',
@@ -63,14 +61,12 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     quality_group.add_argument(
         '--min-image-size',
         type=int,
-        default=1000,
-        help='Minimum image size in pixels (default: 1000)'
+        help='Minimum image size in pixels '
     )
     quality_group.add_argument(
         '--min-text-length',
         type=int,
-        default=100,
-        help='Minimum text length in characters (default: 100)'
+        help='Minimum text length in characters '
     )
     quality_group.add_argument(
         '--skip-single-color-images',
@@ -85,8 +81,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     quality_group.add_argument(
         '--quality-threshold',
         type=float,
-        default=0.7,
-        help='Quality threshold for content filtering (0.0-1.0, default: 0.7)'
+        help='Quality threshold for content filtering (0.0-1.0)'
     )
 
     # Enhanced performance options
@@ -94,8 +89,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     perf_group.add_argument(
         '--threads',
         type=int,
-        default=4,
-        help='Number of parallel threads (default: 4)'
+        help='Number of parallel threads '
     )
     perf_group.add_argument(
         '--save-per-file',
@@ -115,8 +109,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     perf_group.add_argument(
         '--batch-size',
         type=int,
-        default=10,
-        help='Number of files to process in each batch (default: 10)'
+        help='Number of files to process in each batch'
     )
 
     # Feature flags - ENHANCED WITH SMART PDF ANALYSIS
@@ -127,7 +120,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         help='Process images with vision LLMs'
     )
     ocr_group = feature_group.add_mutually_exclusive_group()
-    ocr_group.add_argument('--use-ocr', action='store_true',default=True, help='Enable OCR...')
+    ocr_group.add_argument('--use-ocr', action='store_true', help='Enable OCR...')
     ocr_group.add_argument('--no-ocr', action='store_true', help='Disable OCR...')
 
     # NEW: Smart PDF Analysis options
@@ -142,25 +135,22 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     config_group.add_argument(
         '--chunk-size',
         type=int,
-        default=4000,
-        help='Text chunk size for processing (default: 4000)'
+        help='Text chunk size for processing '
     )
     config_group.add_argument(
         '--overlap',
         type=int,
-        default=200,
-        help='Overlap between text chunks (default: 200)'
+        help='Overlap between text chunks'
     )
     config_group.add_argument(
         '--max-workers',
         type=int,
-        default=4,
-        help='Maximum number of worker processes (default: 4)'
+        help='Maximum number of worker processes '
     )
     config_group.add_argument(
         '--provider',
         choices=['openai', 'deepseek', 'local'],
-        help='LLM provider to use (openai, deepseek, local)'
+        help='LLM provider to use (openai, deepseek, local) or from plugins'
     )
     config_group.add_argument(
         '--model',
@@ -209,14 +199,12 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     output_group = parser.add_argument_group('📤 Output')
     output_group.add_argument(
         '--output-dir',
-        default='output',
-        help='Output directory (default: output)'
+        help='Output directory '
     )
     output_group.add_argument(
         '--format',
         choices=['jsonl', 'csv', 'json', 'txt'],
-        default='jsonl',
-        help='Output format (default: jsonl)'
+        help='Output format '
     )
     output_group.add_argument(
         '--output-template',
@@ -285,14 +273,12 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     advanced_group.add_argument(
         '--max-file-size',
         type=str,
-        default='100MB',
         help='Maximum file size to process (e.g., 100MB, 1GB)'
     )
     advanced_group.add_argument(
         '--timeout',
         type=int,
-        default=300,
-        help='Timeout per file in seconds (default: 300)'
+        help='Timeout per file in seconds '
     )
 
     # NEW: Plugin-related arguments
@@ -394,6 +380,8 @@ def args_to_config(args) -> Dict[str, Any]:
         Configuration dictionary for processors and pipeline
     """
     config = {
+        #input files path
+        'input_path': args.input_path,
         # Processing mode and types
         'mode': args.mode,
         'generators': args.type,
@@ -516,122 +504,6 @@ Smart Analysis Examples:
   python main.py scanned_docs/ --mode extract-only --smart-pdf-analysis --use-ocr
     """
 
-def validate_args(args) -> bool:
-    """
-    Enhanced argument validation with detailed error messages
-
-    Args:
-        args: Parsed arguments from argparse
-
-    Returns:
-        True if valid, raises ValueError with details if invalid
-    """
-    errors = []
-
-    # Validate input path
-    if not Path(args.input_path).exists():
-        errors.append(f"Input path does not exist: {args.input_path}")
-
-    # Validate page ranges
-    if args.start_page < 1:
-        errors.append(f"start-page must be >= 1, got {args.start_page}")
-
-    if args.end_page and args.end_page < args.start_page:
-        errors.append(f"end-page ({args.end_page}) must be >= start-page ({args.start_page})")
-
-    # Validate skip pages format
-    if args.skip_pages:
-        try:
-            skip_pages = parse_skip_pages(args.skip_pages)
-            if args.start_page in skip_pages:
-                errors.append(f"Cannot skip start-page {args.start_page}")
-        except ValueError as e:
-            errors.append(f"Invalid skip-pages format: {e}")
-
-    # Validate thread count
-    if args.threads < 1 or args.threads > 64:
-        errors.append(f"threads must be between 1 and 64, got {args.threads}")
-
-    if args.max_workers < 1 or args.max_workers > 32:
-        errors.append(f"max-workers must be between 1 and 32, got {args.max_workers}")
-
-    # Validate quality thresholds
-    if args.min_image_size < 0:
-        errors.append(f"min-image-size must be >= 0, got {args.min_image_size}")
-
-    if args.min_text_length < 0:
-        errors.append(f"min-text-length must be >= 0, got {args.min_text_length}")
-
-    if not 0.0 <= args.quality_threshold <= 1.0:
-        errors.append(f"quality-threshold must be between 0.0 and 1.0, got {args.quality_threshold}")
-
-    # Validate chunk settings
-    if args.chunk_size < 100:
-        errors.append(f"chunk-size must be >= 100, got {args.chunk_size}")
-
-    if args.overlap < 0 or args.overlap >= args.chunk_size:
-        errors.append(f"overlap must be >= 0 and < chunk-size, got {args.overlap}")
-
-    # Validate timeout
-    if args.timeout < 10:
-        errors.append(f"timeout must be >= 10 seconds, got {args.timeout}")
-
-    # Validate file size
-    try:
-        parse_file_size(args.max_file_size)
-    except ValueError:
-        errors.append(f"Invalid max-file-size format: {args.max_file_size}")
-
-    # Validate config file if provided
-    if args.config_file and not Path(args.config_file).exists():
-        errors.append(f"Config file does not exist: {args.config_file}")
-
-    # Validate plugin directory if provided
-    if args.plugin_dir and not Path(args.plugin_dir).is_dir():
-        errors.append(f"Plugin directory does not exist: {args.plugin_dir}")
-
-    # Validate resume file if provided
-    if args.resume_from and not Path(args.resume_from).exists():
-        errors.append(f"Resume file does not exist: {args.resume_from}")
-
-    # Validate output template if provided
-    if args.output_template and not Path(args.output_template).exists():
-        errors.append(f"Output template file does not exist: {args.output_template}")
-
-    # Check for conflicting options
-    if args.no_cache and args.resume_from:
-        errors.append("Cannot use --no-cache with --resume-from")
-
-    if args.dry_run and args.save_per_file:
-        errors.append("Cannot use --dry-run with --save-per-file")
-
-    if args.test_mode and args.resume_from:
-        errors.append("Cannot use --test-mode with --resume-from")
-
-    # NEW: Validate Smart PDF Analysis options
-    if args.smart_pdf_analysis and args.no_smart_analysis:
-        errors.append("Cannot use both --smart-pdf-analysis and --no-smart-analysis")
-
-    # Validate LLM requirements
-    if args.mode in ['generate', 'full']:
-        if not args.provider:
-            # Will use default provider, just warn
-            pass
-        elif args.provider == 'local' and not args.model:
-            errors.append("Local provider requires --model to be specified")
-
-    # Validate analyze mode
-    if args.mode == 'analyze':
-        # Check if input contains PDF files
-        input_path = Path(args.input_path)
-        if input_path.is_file() and input_path.suffix.lower() != '.pdf':
-            errors.append("Analyze mode currently only supports PDF files")
-
-    if errors:
-        error_msg = "❌ Argument validation failed:\n" + "\n".join(f"  • {error}" for error in errors)
-        raise ValueError(error_msg)
-
-    return True
 
 def _get_prompts_for_style(style: str) -> Dict[str, str]:
     """Get prompts for a specific style"""

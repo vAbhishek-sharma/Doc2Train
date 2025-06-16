@@ -1,25 +1,60 @@
-# outputs/__init__.py
 """
-Complete outputs package for Doc2Train v2.0 Enhanced
-Output handling and formatting components
+Outputs package for Doc2Train v2.0 Enhanced
+All writer, formatter, and manager classes for handling output generation
 """
 
-from .writers import (
-    OutputWriter, TemplateProcessor, OutputValidator, OutputManager
+# Base formatter API
+from .base_formatters import (
+    BaseFormatter,
+    register_formatter,
+    get_formatter,
+    list_formatters
 )
 
+# Base writer API
+from .base_writer import (
+    BaseWriter,
+    register_writer,
+    get_writer,
+    list_writers
+)
+
+# Concrete formatters
 from .formatters import (
-    BaseFormatter, JSONLFormatter, JSONFormatter, CSVFormatter, TextFormatter,
-    XMLFormatter, MarkdownFormatter, FormatterFactory,
-    format_data, get_file_extension
+    JSONLFormatter,
+    JSONFormatter,
+    CSVFormatter,
+    MarkdownFormatter,
+    FormatterFactory,
+    format_data,
+    get_file_extension
 )
+
+# Concrete writers and managers
+from .writers import (
+    OutputWriter,
+    OutputValidator,
+    OutputManager,
+    create_output_manager,
+    save_extraction_only_results,
+    save_generated_training_data
+)
+
+# Plugin managers
+from .formatter_plugin_manager import FormatterPluginManager
+from .writer_plugin_manager import WriterPluginManager
 
 __all__ = [
-    # Writers
-    'OutputWriter', 'TemplateProcessor', 'OutputValidator', 'OutputManager',
-
-    # Formatters
-    'BaseFormatter', 'JSONLFormatter', 'JSONFormatter', 'CSVFormatter', 'TextFormatter',
-    'XMLFormatter', 'MarkdownFormatter', 'FormatterFactory',
-    'format_data', 'get_file_extension'
+    # Base formatter API
+    'BaseFormatter', 'register_formatter', 'get_formatter', 'list_formatters',
+    # Base writer API
+    'BaseWriter', 'register_writer', 'get_writer', 'list_writers',
+    # Concrete formatters
+    'JSONLFormatter', 'JSONFormatter', 'CSVFormatter', 'MarkdownFormatter',
+    'FormatterFactory', 'format_data', 'get_file_extension',
+    # Concrete writers and managers
+    'OutputWriter', 'OutputValidator', 'OutputManager',
+    'create_output_manager', 'save_extraction_only_results', 'save_generated_training_data',
+    # Plugin managers
+    'FormatterPluginManager', 'WriterPluginManager'
 ]

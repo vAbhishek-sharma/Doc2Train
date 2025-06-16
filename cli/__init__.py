@@ -5,8 +5,7 @@ Command line interface components
 """
 
 from .args import (
-    create_enhanced_parser, parse_skip_pages, args_to_config,
-    validate_args, get_examples_text
+    create_enhanced_parser, parse_skip_pages, args_to_config, get_examples_text
 )
 
 from .commands import (
@@ -17,8 +16,7 @@ from .commands import (
 
 __all__ = [
     # Argument parsing
-    'create_enhanced_parser', 'parse_skip_pages', 'args_to_config',
-    'validate_args', 'get_examples_text',
+    'create_enhanced_parser', 'parse_skip_pages', 'args_to_config', 'get_examples_text',
 
     # Command execution
     'execute_processing_command', 'execute_validate_command', 'execute_benchmark_command',

@@ -8,10 +8,16 @@ import json
 import csv
 import time
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Type
 import pandas as pd
 import ipdb
-import pdb
+from outputs.writer_plugin_manager import WriterPluginManager
+
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import List, Dict
+from outputs.base_writer import BaseWriter
+
 class OutputWriter:
     """
     Complete output writer with multiple format support and templates
@@ -21,7 +27,10 @@ class OutputWriter:
             """Initialize output writer"""
             self.config = config
             self.output_dir = Path(config.get('output_dir', 'output'))
-
+            self.config = config
+            self.plugin_mgr = WriterPluginManager(config)
+            # now plugins are available by name:
+            # example: self.plugin_mgr.get('csv_writer')
             # NEW: Parse multiple output formats
             output_format = config.get('output_format', 'jsonl')
             if isinstance(output_format, str) and ',' in output_format:
@@ -165,19 +174,25 @@ class OutputWriter:
         return organized
 
     def _save_data_type(self, data_type: str, items: List[Dict]):
-        """Save a specific data type to file"""
-        # Create type-specific directory
+        """Save a specific data type to file, in **all** configured formats."""
         type_dir = self.output_dir / data_type
         type_dir.mkdir(exist_ok=True)
-
-        # Generate output filename
         timestamp = int(time.time())
-        output_file = type_dir / f"{data_type}_{timestamp}.{self.output_format}"
 
-        # Write data
-        self._write_data_file(output_file, items, data_type)
+        for fmt in self.output_formats:
+            out = type_dir / f"{data_type}_{timestamp}.{fmt}"
+            plugin_cls = self.plugin_mgr.get(fmt)
 
-        print(f"💾 Saved {len(items)} {data_type} items to {output_file.name}")
+            if plugin_cls:
+                # custom plugin writer
+                writer = plugin_cls(self.config)
+                writer.write(out, items, data_type)
+                print(f"💾 Saved {len(items)} '{data_type}' via plugin '{fmt}' → {out.name}")
+            else:
+                # fallback to built-in
+                self.output_format = fmt
+                self._write_data_file(out, items, data_type)
+                print(f"💾 Saved {len(items)} '{data_type}' → {out.name}")
 
     def _write_data_file(self, output_file: Path, items: List[Dict], data_type: str):
         """Write data to file in specified format"""

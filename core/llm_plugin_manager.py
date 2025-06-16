@@ -9,6 +9,7 @@ import importlib.util
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 from plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
+from utils.plugin_loader import load_plugins_from_dirs
 
 class LLMPluginManager:
     """
@@ -16,21 +17,16 @@ class LLMPluginManager:
     """
 
     def __init__(self):
-        self.plugins = {}
-        self.builtin_providers = ['openai', 'deepseek', 'local']  # Keep existing providers
-        self._load_builtin_plugins()
-
-    def _load_builtin_plugins(self):
-        """Load built-in LLM plugins"""
-        plugins_dir = Path(__file__).parent.parent / 'plugins' / 'llm_plugins'
-
-        if plugins_dir.exists():
-            # Try to load built-in plugins
-            for plugin_file in plugins_dir.glob('*_plugin.py'):
-                try:
-                    self.load_plugin(str(plugin_file))
-                except Exception as e:
-                    print(f"⚠️ Failed to load built-in plugin {plugin_file.name}: {e}")
+        # merge built-in + user dirs
+        plugin_dirs = [
+            Path(__file__).parent.parent/'plugins'/'llm_plugins',
+            *self.config.get('llm_plugin_dirs', [])
+        ]
+        self.plugins = load_plugins_from_dirs(
+            plugin_dirs,
+            BaseLLMPlugin,
+            entry_point_group="doc2train.llm_plugins"
+        )
 
     def load_plugin(self, plugin_path: str) -> bool:
         try:

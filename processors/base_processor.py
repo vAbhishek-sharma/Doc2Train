@@ -5,7 +5,7 @@ Provides common functionality for all document processors
 """
 
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Dict, Optional, Any
+from typing import Tuple, List, Dict, Optional, Any, Type
 from pathlib import Path
 import time
 import hashlib
@@ -16,6 +16,7 @@ import unicodedata
 from utils.progress import start_file_processing, complete_file_processing, add_processing_error
 from utils.cache import CacheManager
 from utils.validation import validate_extraction_quality
+_PROCESSOR_PLUGINS: Dict[str, Type["BaseProcessor"]] = {}
 
 class BaseProcessor(ABC):
     """
@@ -387,6 +388,16 @@ class BaseProcessor(ABC):
             stats['avg_images_per_file'] = 0.0
 
         return stats
+
+
+def register_processor(name: str, cls: Type[BaseProcessor]):
+    _PROCESSOR_PLUGINS[name] = cls
+
+def get_processor(name: str) -> Optional[Type[BaseProcessor]]:
+    return _PROCESSOR_PLUGINS.get(name)
+
+def list_processors() -> List[str]:
+    return List(_PROCESSOR_PLUGINS)
 
 class ProcessorRegistry:
     """
