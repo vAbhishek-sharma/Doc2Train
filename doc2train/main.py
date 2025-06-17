@@ -109,7 +109,6 @@ def main():
 
         # 2) Discover & register **all** plugins (LLM, Processor, Writer, Formatter)
         set_plugins(config)
-
         # 3) Now handle any plugin-related commands (list, discover, etc.)
         handle_plugin_commands(config)
         # 3. Handle resume logic (may need merged config)

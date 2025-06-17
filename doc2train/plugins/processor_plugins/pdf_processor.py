@@ -38,7 +38,7 @@ class PDFProcessor(BaseProcessor):
             # Use smart analyzer to determine optimal processing strategy
             if self.config.get('use_smart_analysis', True):
                 # Import here to avoid circular import
-                from .pdf_utils.extraction import analyze_and_extract_pdf
+                from doc2train.processors.pdf_utils.extraction import analyze_and_extract_pdf
                 text, images, analysis = analyze_and_extract_pdf(file_path)
 
                 # Store analysis results for debugging/stats

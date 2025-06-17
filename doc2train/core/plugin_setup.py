@@ -14,7 +14,6 @@ from doc2train.processors.base_processor import register_processor
 from doc2train.outputs.base_writer import register_writer
 from doc2train.outputs.base_formatters import register_formatter
 import ipdb
-
 def set_plugins(config: dict):
     """
     Discover & register LLM, Processor, Writer, and Formatter plugins using
@@ -24,18 +23,21 @@ def set_plugins(config: dict):
     llm_mgr = LLMPluginManager(config)
     for name, cls in llm_mgr.plugins.items():
         register_llm_plugin(name, cls)
-    ipdb.set_trace()
+
     # — Processor plugins —
     proc_mgr = ProcessorPluginManager(config)
-    for name, cls in proc_mgr.plugins.items():
-        register_processor(name, cls)
+    for info in proc_mgr.plugins.values():
+        name = info.get('name')
+        extensions = info.get('extensions', [])
+        proc_cls = info.get('class')
+        register_processor(name, extensions, proc_cls)
 
     # — Writer plugins —
     writer_mgr = WriterPluginManager(config)
-    for name, cls in writer_mgr.plugins.items():
-        register_writer(name, cls)
+    for name, writer_cls in writer_mgr.plugins.items():
+        register_writer(name, writer_cls)
 
     # — Formatter plugins —
     fmt_mgr = FormatterPluginManager(config)
-    for name, cls in fmt_mgr.plugins.items():
-        register_formatter(name, cls)
+    for name, fmt_cls in fmt_mgr.plugins.items():
+        register_formatter(name, fmt_cls)

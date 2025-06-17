@@ -43,24 +43,24 @@ from .epub_processor import extract_epub_content
 from .image_processor import extract_image_content
 
 # Register all available processors
-def _register_all_processors():
-    """Register all available processor classes"""
-    registry = get_processor_registry()
+# def _register_all_processors():
+#     """Register all available processor classes"""
+#     registry = get_processor_registry()
 
-    if PDFProcessor:
-        registry.register('pdf', ['.pdf'], PDFProcessor)
+#     if PDFProcessor:
+#         registry.register('pdf', ['.pdf'], PDFProcessor)
 
-    if TextProcessor:
-        registry.register('text', ['.txt', '.srt', '.vtt'], TextProcessor)
+#     if TextProcessor:
+#         registry.register('text', ['.txt', '.srt', '.vtt'], TextProcessor)
 
-    if EPUBProcessor:
-        registry.register('epub', ['.epub'], EPUBProcessor)
+#     if EPUBProcessor:
+#         registry.register('epub', ['.epub'], EPUBProcessor)
 
-    if ImageProcessor:
-        registry.register('image', ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.gif', '.webp'], ImageProcessor)
+#     if ImageProcessor:
+#         registry.register('image', ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.gif', '.webp'], ImageProcessor)
 
-# Auto-register processors on import
-_register_all_processors()
+# # Auto-register processors on import
+# _register_all_processors()
 
 __all__ = [
     # Base processor and registry

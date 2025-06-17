@@ -25,7 +25,6 @@ def validate_input_and_files(config) -> bool:
 
     # Validate input path
     input_path = Path(config.get('input_path'))
-    ipdb.set_trace()
     if not input_path.exists():
         errors.append(f"Input path does not exist: {config.get('input_path')}")
     else:

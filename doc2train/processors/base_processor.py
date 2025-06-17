@@ -408,7 +408,7 @@ class ProcessorRegistry:
     def __init__(self):
         self.processors = {}
         self.plugin_processors = {}
-        self._register_builtin_processors()
+        # self._register_builtin_processors()
 
     def _register_builtin_processors(self):
         """Register built-in processors"""
