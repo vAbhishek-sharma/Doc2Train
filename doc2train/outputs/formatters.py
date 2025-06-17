@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Type
 from abc import ABC, abstractmethod
 
-from outputs.base_formatters import BaseFormatter
+from doc2train.outputs.base_formatters import BaseFormatter
 
 class JSONLFormatter(BaseFormatter):
     """JSONL (JSON Lines) formatter - one JSON object per line"""

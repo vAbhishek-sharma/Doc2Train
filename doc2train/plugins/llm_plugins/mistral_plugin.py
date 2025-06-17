@@ -3,7 +3,7 @@ import requests
 import json
 import os
 from typing import Dict, Any, List, Union, Optional
-from plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
+from doc2train.plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
 
 class MistralPlugin(BaseLLMPlugin):
     """Mistral AI provider plugin"""

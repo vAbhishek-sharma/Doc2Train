@@ -11,12 +11,12 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Type
 import pandas as pd
 import ipdb
-from outputs.writer_plugin_manager import WriterPluginManager
+from doc2train.outputs.writer_plugin_manager import WriterPluginManager
 
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Dict
-from outputs.base_writer import BaseWriter
+from doc2train.outputs.base_writer import BaseWriter
 
 class OutputWriter:
     """

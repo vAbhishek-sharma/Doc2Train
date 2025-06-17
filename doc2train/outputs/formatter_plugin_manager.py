@@ -1,7 +1,7 @@
 # outputs/formatter_plugin_manager.py
 from pathlib import Path
-from utils.plugin_loader import load_plugins_from_dirs
-from outputs.base_formatters import BaseFormatter
+from doc2train.utils.plugin_loader import load_plugins_from_dirs
+from doc2train.outputs.base_formatters import BaseFormatter
 
 class FormatterPluginManager:
     def __init__(self, config):

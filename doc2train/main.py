@@ -22,9 +22,9 @@ from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from datetime import datetime
-from utils.config_loader import get_config_loader, validate_config
-from cli.commands import execute_discover_llm_plugins_command, execute_list_providers_command, route_command
-from core.plugin_setup import set_plugins
+from doc2train.utils.config_loader import get_config_loader, validate_config
+from doc2train.cli.commands import execute_discover_llm_plugins_command, execute_list_providers_command, route_command
+from doc2train.core.plugin_setup import set_plugins
 
 import ipdb
 # Add project root to Python path
@@ -32,21 +32,21 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 try:
     # Import core functionality
-    from utils.files import get_supported_files
-    from processors import get_processor_for_file, get_supported_extensions
-    from core.pipeline import ProcessingPipeline
+    from doc2train.utils.files import get_supported_files
+    from doc2train.processors import get_processor_for_file, get_supported_extensions
+    from doc2train.core.pipeline import ProcessingPipeline
 
     # Import utilities
-    from utils.progress import ProgressTracker, ProgressDisplay
-    from utils.validation import validate_input_and_files
-    from utils.cache import CacheManager
-    from utils.config import *  # Import all config variables
-    from cli.commands import execute_processing_command
+    from doc2train.utils.progress import ProgressTracker, ProgressDisplay
+    from doc2train.utils.validation import validate_input_and_files
+    from doc2train.utils.cache import CacheManager
+    from doc2train.utils.config import *  # Import all config variables
+    from doc2train.cli.commands import execute_processing_command
     # Import CLI components
-    from cli.args import create_enhanced_parser, parse_skip_pages, args_to_config
+    from doc2train.cli.args import create_enhanced_parser, parse_skip_pages, args_to_config
 
     # Import output handling
-    from outputs.writers import OutputWriter
+    from doc2train.outputs.writers import OutputWriter
 
 except ImportError as e:
     print(f"❌ Import error: {e}")

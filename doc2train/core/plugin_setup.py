@@ -4,16 +4,16 @@ core/plugin_setup.py
 Central orchestration for discovering and registering all plugin types via their managers.
 """
 
-from core.llm_plugin_manager import LLMPluginManager
-from processors.processor_plugin_manager import ProcessorPluginManager
-from outputs.writer_plugin_manager import WriterPluginManager
-from outputs.formatter_plugin_manager import FormatterPluginManager
+from doc2train.core.llm_plugin_manager import LLMPluginManager
+from doc2train.processors.processor_plugin_manager import ProcessorPluginManager
+from doc2train.outputs.writer_plugin_manager import WriterPluginManager
+from doc2train.outputs.formatter_plugin_manager import FormatterPluginManager
 
-from plugins.llm_plugins.base_llm_plugin import register_llm_plugin
-from processors.base_processor import register_processor
-from outputs.base_writer import register_writer
-from outputs.base_formatters import register_formatter
-
+from doc2train.plugins.llm_plugins.base_llm_plugin import register_llm_plugin
+from doc2train.processors.base_processor import register_processor
+from doc2train.outputs.base_writer import register_writer
+from doc2train.outputs.base_formatters import register_formatter
+import ipdb
 
 def set_plugins(config: dict):
     """
@@ -24,7 +24,7 @@ def set_plugins(config: dict):
     llm_mgr = LLMPluginManager(config)
     for name, cls in llm_mgr.plugins.items():
         register_llm_plugin(name, cls)
-
+    ipdb.set_trace()
     # — Processor plugins —
     proc_mgr = ProcessorPluginManager(config)
     for name, cls in proc_mgr.plugins.items():

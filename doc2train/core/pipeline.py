@@ -10,19 +10,19 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import threading
-from outputs.writers import OutputManager
-from utils.resource_manager import resource_manager
+from doc2train.outputs.writers import OutputManager
+from doc2train.utils.resource_manager import resource_manager
 import os
 
-from processors.base_processor import get_processor_for_file, discover_plugins
-from core.generator import generate_training_data
-from core.llm_client import get_available_providers
-from utils.progress import (
+from doc2train.processors.base_processor import get_processor_for_file, discover_plugins
+from doc2train.core.generator import generate_training_data
+from doc2train.core.llm_client import get_available_providers
+from doc2train.utils.progress import (
     initialize_progress, start_file_processing, complete_file_processing,
     add_processing_error, update_progress_display, show_completion_summary
 )
-from utils.validation import validate_input_and_files
-from utils.process import ProcessManager
+from doc2train.utils.validation import validate_input_and_files
+from doc2train.utils.process import ProcessManager
 class BaseProcessor:
     def process_files(self, file_paths: List[str], args=None) -> Dict[str, Any]:
         raise NotImplementedError

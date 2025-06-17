@@ -13,9 +13,9 @@ import json
 import re
 import regex
 import unicodedata
-from utils.progress import start_file_processing, complete_file_processing, add_processing_error
-from utils.cache import CacheManager
-from utils.validation import validate_extraction_quality
+from doc2train.utils.progress import start_file_processing, complete_file_processing, add_processing_error
+from doc2train.utils.cache import CacheManager
+from doc2train.utils.validation import validate_extraction_quality
 _PROCESSOR_PLUGINS: Dict[str, Type["BaseProcessor"]] = {}
 
 class BaseProcessor(ABC):

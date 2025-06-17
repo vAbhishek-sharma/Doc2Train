@@ -9,7 +9,7 @@ import json
 import os
 from typing import Dict, List, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from config.settings import *
+from doc2train.config.settings import *
 
 def generate_training_data(text: str, generators: List[str] = None, images: List[Dict] = None,
                          custom_prompts: Dict[str, str] = None, use_async: bool = True) -> Dict[str, List]:

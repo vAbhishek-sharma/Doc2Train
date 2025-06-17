@@ -8,11 +8,11 @@ import time
 from typing import Dict, List, Any
 from pathlib import Path
 import ipdb
-from core.pipeline import ProcessingPipeline, PerformanceBenchmark ,create_processing_pipeline
-from utils.validation import validate_and_report_system, create_validation_report
-from utils.cache import get_cache_stats, cleanup_cache, optimize_cache
-from processors.base_processor import list_all_processors, discover_plugins
-from outputs.writers import OutputManager
+from doc2train.core.pipeline import ProcessingPipeline, PerformanceBenchmark ,create_processing_pipeline
+from doc2train.utils.validation import validate_and_report_system, create_validation_report
+from doc2train.utils.cache import get_cache_stats, cleanup_cache, optimize_cache
+from doc2train.processors.base_processor import list_all_processors, discover_plugins
+from doc2train.outputs.writers import OutputManager
 
 def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
     """Execute the main processing command with all enhancements"""
@@ -182,7 +182,7 @@ def execute_cache_clear_command(config) -> Dict[str, Any]:
     """Clear cache"""
     print("🗑️ Clearing cache...")
 
-    from utils.cache import clear_cache
+    from doc2train.utils.cache import clear_cache
 
     file_path = config.get('cache_file', None)
     clear_cache(file_path)
@@ -221,7 +221,7 @@ def execute_info_command(config) -> Dict[str, Any]:
     # LLM providers
     print(f"\n🤖 LLM Providers:")
     try:
-        from core.llm_client import get_available_providers
+        from doc2train.core.llm_client import get_available_providers
         providers = get_available_providers()
         if providers:
             for provider in providers:
@@ -407,7 +407,7 @@ def execute_list_providers_command() -> Dict[str, Any]:
     print("🤖 Available LLM Providers:")
 
     try:
-        from core.llm_plugin_manager import get_available_providers, get_provider_capabilities
+        from doc2train.core.llm_plugin_manager import get_available_providers, get_provider_capabilities
         providers = get_available_providers()
 
         builtin_providers = ['openai', 'deepseek', 'local']
@@ -433,7 +433,7 @@ def execute_list_providers_command() -> Dict[str, Any]:
         # Show plugin providers
         if plugin_providers:
             print("\n🔌 Plugin Providers:")
-            from core.llm_plugin_manager import get_plugin_manager
+            from doc2train.core.llm_plugin_manager import get_plugin_manager
             plugin_manager = get_plugin_manager()
 
             for provider in plugin_providers:
@@ -492,7 +492,7 @@ def execute_direct_media_command(args) -> Dict[str, Any]:
     print(f"🎬 Processing media directly: {input_path}")
 
     try:
-        from core.llm_plugin_manager import process_media_directly
+        from doc2train.core.llm_plugin_manager import process_media_directly
 
         provider = getattr(args, 'provider', None)
         prompt = getattr(args, 'media_prompt', None)

@@ -8,8 +8,8 @@ import sys
 import importlib.util
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
-from plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
-from utils.plugin_loader import load_plugins_from_dirs
+from doc2train.plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
+from doc2train.utils.plugin_loader import load_plugins_from_dirs
 
 class LLMPluginManager:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -200,7 +200,8 @@ def get_plugin_manager() -> LLMPluginManager:
 Enhanced LLM client with plugin support and direct media processing
 """
 
-from core.llm_plugin_manager import get_plugin_manager
+from doc2train.core.llm_plugin_manager import get_plugin_manager
+from doc2train.config.settings import LLM_ROUTING
 from pathlib import Path
 
 

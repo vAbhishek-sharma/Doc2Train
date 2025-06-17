@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import mimetypes
 from datetime import datetime
 import ipdb
-from processors.base_processor import get_supported_extensions
+from doc2train.processors.base_processor import get_supported_extensions
 
 def get_supported_files(directory: str, recursive: bool = True, max_files: Optional[int] = None) -> List[str]:
     """

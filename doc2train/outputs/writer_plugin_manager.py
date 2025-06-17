@@ -1,7 +1,7 @@
 # outputs/writer_plugin_manager.py
 from pathlib import Path
-from utils.plugin_loader import load_plugins_from_dirs
-from outputs.base_writer import BaseWriter  # define a common base
+from doc2train.utils.plugin_loader import load_plugins_from_dirs
+from doc2train.outputs.base_writer import BaseWriter  # define a common base
 
 class WriterPluginManager:
     def __init__(self, config):

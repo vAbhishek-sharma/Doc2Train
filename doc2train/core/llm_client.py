@@ -10,7 +10,7 @@ import requests
 import json
 import base64
 from typing import Dict, Any, Optional, List  # Added this line
-from config.settings import *
+from doc2train.config.settings import *
 
 def call_llm(prompt: str, task: str = 'general', max_retries: int = 3) -> str:
     """
