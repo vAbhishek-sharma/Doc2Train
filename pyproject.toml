@@ -55,7 +55,7 @@ dev = [
 ]
 
 [project.scripts]
-doc2train = "doc2train.cli:main"
+doc2train = "doc2train.main:main"
 doc2train-api = "doc2train.api:start_server"
 doc2train-web = "doc2train.web:start_ui"
 
