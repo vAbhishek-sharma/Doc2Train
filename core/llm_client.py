@@ -4,6 +4,7 @@ Simple LLM client - handles calls to different AI providers
 Supports OpenAI, DeepSeek, and local models
 """
 
+from pathlib import Path
 import openai
 import requests
 import json

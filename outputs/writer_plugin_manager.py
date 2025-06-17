@@ -9,10 +9,11 @@ class WriterPluginManager:
             Path(__file__).parent/'writer_plugins',
             *config.get('writer_plugin_dirs', [])
         ]
+        writer_eps = "doc2train.writer_plugins"
         self.plugins = load_plugins_from_dirs(
             dirs,
             BaseWriter,
-            entry_point_group="doc2train.writer_plugins"
+            writer_eps
         )
 
     def get(self, name):

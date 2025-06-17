@@ -9,10 +9,11 @@ class ProcessorPluginManager:
             Path(__file__).parent,                    # your built-in processors folder
             *config.get('processor_plugin_dirs', [])  # cli/yaml overrides
         ]
+        processor_eps = "doc2train.processor_plugins"
         self.plugins = load_plugins_from_dirs(
             dirs,
             BaseProcessor,
-            entry_point_group="doc2train.processor_plugins"
+            processor_eps
         )
 
     def get(self, name):       return self.plugins.get(name)

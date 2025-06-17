@@ -9,10 +9,11 @@ class FormatterPluginManager:
             Path(__file__).parent/'formatter_plugins',
             *config.get('formatter_plugin_dirs', [])
         ]
+        formatter_eps = "doc2train.formatter_plugins"
         self.plugins = load_plugins_from_dirs(
             dirs,
             BaseFormatter,
-            entry_point_group="doc2train.formatter_plugins"
+            formatter_eps
         )
 
     def get(self, name):

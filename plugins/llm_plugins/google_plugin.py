@@ -7,7 +7,7 @@ import requests
 import json
 import os
 from typing import Dict, Any, List, Union, Optional
-from .base_llm_plugin import BaseLLMPlugin
+from plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
 
 class GooglePlugin(BaseLLMPlugin):
     """

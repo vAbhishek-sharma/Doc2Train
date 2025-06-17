@@ -26,10 +26,11 @@ class LLMPluginManager:
         ]
 
         # actually load all subclasses of BaseLLMPlugin
+        llm_eps = "plugins.llm_plugins"
         self.plugins = load_plugins_from_dirs(
             plugin_dirs,
             BaseLLMPlugin,
-            pkg_prefix="plugins.llm_plugins",
+            pkg_prefix=llm_eps,
         )
 
 
