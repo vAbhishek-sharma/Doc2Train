@@ -13,6 +13,19 @@ class GooglePlugin(BaseLLMPlugin):
     """
     Google Gemini provider plugin
     """
+    provider_name = "google"
+    priority = 10
+    supported_types = ["text", "image"]
+    supports_vision = True
+    description = "Google Gemini LLM (vision & text)"
+    version = "1.0.0"
+    author = "Doc2Train Team"
+    capabilities = {
+                'text': True,
+                'vision': True,  # Gemini Pro Vision
+                'streaming': False,
+                'function_calling': True
+            }
 
     def __init__(self, config: Optional[Dict] = None):
         super().__init__(config)

@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import mimetypes
 from datetime import datetime
 import ipdb
-from doc2train.processors.base_processor import get_supported_extensions
+from doc2train.core.registries.processor_registry import _PROCESSOR_REGISTRY
 
 def get_supported_files(directory: str, recursive: bool = True, max_files: Optional[int] = None) -> List[str]:
     """
@@ -42,7 +42,7 @@ def get_supported_files(directory: str, recursive: bool = True, max_files: Optio
     try:
 
         from config.settings import SUPPORTED_FORMATS
-        supported_extensions = get_supported_extensions()
+        supported_extensions = _PROCESSOR_REGISTRY.get_supported_extensions()
     except ImportError:
         # Fallback to basic supported extensions
         supported_extensions = {'.pdf', '.txt', '.epub', '.png', '.jpg', '.jpeg', '.srt', '.vtt', '.bmp', '.tiff'}
@@ -70,15 +70,10 @@ def get_supported_files(directory: str, recursive: bool = True, max_files: Optio
     return supported_files
 
 def is_supported_format(file_path: str) -> bool:
-    """Check if file format is supported"""
-    try:
-        from config.settings import SUPPORTED_FORMATS
-        extension = Path(file_path).suffix.lower()
-        return extension in SUPPORTED_FORMATS
-    except ImportError:
-        # Fallback to basic check
-        supported_exts = {'.pdf', '.txt', '.epub', '.png', '.jpg', '.jpeg', '.srt', '.vtt', '.bmp', '.tiff'}
-        return Path(file_path).suffix.lower() in supported_exts
+    """Check if file format is supported by any registered processor."""
+    extension = Path(file_path).suffix.lower()
+    supported_exts = _PROCESSOR_REGISTRY.get_supported_extensions()
+    return extension in supported_exts
 
 def get_file_info(file_path: str) -> Dict[str, Any]:
     """

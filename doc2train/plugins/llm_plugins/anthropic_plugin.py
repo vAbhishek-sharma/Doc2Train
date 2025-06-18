@@ -8,15 +8,22 @@ import requests
 import json
 from typing import Dict, Any, List, Union, Optional
 from doc2train.plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
-
+import ipdb
 class AnthropicPlugin(BaseLLMPlugin):
     """
     Anthropic Claude provider plugin
     """
-
+    provider_name = "anthropic"
+    priority = 10
+    supported_types = ["text", "image"]
+    supports_vision = True
+    description = "Anthropic Claude LLM (vision & text)"
+    version = "1.0.0"
+    author = "Doc2Train Team"
     def __init__(self, config: Optional[Dict] = None):
         super().__init__(config)
         self.provider_name = 'anthropic'
+        ipdb.set_trace()
         self.api_key = self.config.get('api_key') or os.getenv('ANTHROPIC_API_KEY')
         self.base_url = self.config.get('base_url', 'https://api.anthropic.com/v1')
 
@@ -149,5 +156,6 @@ class AnthropicPlugin(BaseLLMPlugin):
     def validate_config(self) -> bool:
         """Validate Anthropic configuration"""
         return bool(self.api_key)
+
 
 

@@ -13,7 +13,12 @@ from .base_processor import BaseProcessor
 
 class EPUBProcessor(BaseProcessor):
     """EPUB processor with full BaseProcessor functionality"""
-
+    processor_name = "epub"
+    priority = 10
+    supported_extensions = [".epub"]
+    description = "Extracts text and images from epub files."
+    version = "1.0.0"
+    author = "Doc2Train Team"
     def __init__(self, config=None):
         super().__init__(config)
         self.supported_extensions = ['.epub']

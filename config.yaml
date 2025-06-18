@@ -54,6 +54,25 @@ llm:
   model: ""  # Leave empty for auto-selection
   fallback_provider: "deepseek"
   max_concurrent_calls: 5  # For async processing
+  llm_providers:
+    anthropic:
+      api_key: "sk-ant-xxxx"
+      base_url: "https://api.anthropic.com/v1"
+      default_model: "claude-3-5-sonnet-20241022"
+      timeout: 30
+      temperature: 0.7
+    openai:
+      api_key: "sk-oa-xxxx"
+      base_url: "https://api.openai.com/v1"
+      default_model: "gpt-4o"
+      temperature: 0.5
+      max_tokens: 4096
+    deepseek:
+      api_key: "sk-ds-xxxx"
+      base_url: "https://api.deepseek.com/v1"
+      default_model: "deepseek-chat"
+      temperature: 0.4
+
 
   # API Keys (can also be set via environment variables)
   api_keys:

@@ -12,7 +12,12 @@ from .base_processor import BaseProcessor
 
 class TextProcessor(BaseProcessor):
     """Text processor with full BaseProcessor functionality"""
-
+    processor_name = "Text"
+    priority = 10
+    supported_extensions = ['.txt', '.srt', '.vtt']
+    description = "Extracts text and images from epub files."
+    version = "1.0.0"
+    author = "Doc2Train Team"
     def __init__(self, config=None):
         super().__init__(config)
         self.supported_extensions = ['.txt', '.srt', '.vtt']

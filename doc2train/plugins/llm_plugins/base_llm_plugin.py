@@ -6,10 +6,8 @@ Base LLM plugin class for extending LLM provider support
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Type, Union
 import base64
-# 1) Registry dict
-_LLM_PLUGINS: Dict[str, Type["BaseLLMPlugin"]] = {}
-
-class BaseLLMPlugin(ABC):
+from doc2train.core.plugin_metadata_mixins.llm_plugin_metadata_mixin import LLMPluginMetadataMixin
+class BaseLLMPlugin(LLMPluginMetadataMixin,ABC):
     """
     Base class for LLM provider plugins
     """
@@ -137,13 +135,20 @@ class BaseLLMPlugin(ABC):
 
         return base64.b64encode(image_data).decode('utf-8')
 
-# 2) Register function
-def register_llm_plugin(name: str, cls: Type[BaseLLMPlugin]):
-    _LLM_PLUGINS[name] = cls
 
-# 3) Getter functions
-def get_llm_plugin(name: str) -> Optional[Type[BaseLLMPlugin]]:
-    return _LLM_PLUGINS.get(name)
 
-def list_llm_plugins() ->List[str]:
-    return List(_LLM_PLUGINS)
+    @classmethod
+    def configured(cls):
+        """
+        Universal check for plugin readiness.
+        By default: instantiate and call validate_config().
+        Override in subclass if you want custom/static logic.
+        """
+        try:
+            # Try creating an instance and calling validate_config
+            instance = cls()
+            return instance.validate_config()
+        except Exception:
+            return False
+
+

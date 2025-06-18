@@ -6,9 +6,7 @@ Now with proper class-based processors and registry system
 
 # Import the base processor and registry
 from .base_processor import (
-    BaseProcessor, get_processor_registry,
-    register_processor, get_processor_for_file, get_supported_extensions,
-    discover_plugins, list_all_processors
+    BaseProcessor
 )
 
 # Import all processor classes
@@ -64,9 +62,7 @@ from .image_processor import extract_image_content
 
 __all__ = [
     # Base processor and registry
-    'BaseProcessor', 'get_processor_registry',
-    'register_processor', 'get_processor_for_file', 'get_supported_extensions',
-    'discover_plugins', 'list_all_processors', 'extract_content_with_processor',
+    'BaseProcessor'
 
     # Processor classes
     'PDFProcessor', 'TextProcessor', 'EPUBProcessor', 'ImageProcessor',

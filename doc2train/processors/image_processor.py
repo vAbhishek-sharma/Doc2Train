@@ -12,7 +12,12 @@ from .base_processor import BaseProcessor
 
 class ImageProcessor(BaseProcessor):
     """Image processor with full BaseProcessor functionality"""
-
+    processor_name = "Image"
+    priority = 10
+    supported_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.gif', '.webp']
+    description = "Extracts text and images from epub files."
+    version = "1.0.0"
+    author = "Doc2Train Team"
     def __init__(self, config=None):
         super().__init__(config)
         self.supported_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.gif', '.webp']

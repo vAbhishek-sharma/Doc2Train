@@ -7,7 +7,19 @@ from doc2train.plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
 
 class MistralPlugin(BaseLLMPlugin):
     """Mistral AI provider plugin"""
-
+    provider_name = "mistral"
+    priority = 10
+    supported_types = ["text", "image"]
+    supports_vision = False
+    description = "Mistral LLM (vision & text)"
+    version = "1.0.0"
+    author = "Doc2Train Team"
+    capabilities = {
+            'text': True,
+            'vision': False,  # Mistral doesn't have vision yet
+            'streaming': True,
+            'function_calling': True
+        }
     def __init__(self, config: Optional[Dict] = None):
         super().__init__(config)
         self.provider_name = 'mistral'

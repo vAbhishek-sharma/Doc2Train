@@ -216,7 +216,7 @@ class ConfigLoader:
             'use_smart_analysis': self.get('features.smart_pdf_analysis'),
 
             # LLM settings
-            'provider': self.get('llm.provider'),
+            'llm_providers': self.get('llm.llm_providers'),
             'model': self.get('llm.model'),
             'max_concurrent_calls': self.get('llm.max_concurrent_calls'),
 

@@ -11,7 +11,15 @@ import ipdb
 from doc2train.core.pipeline import ProcessingPipeline, PerformanceBenchmark ,create_processing_pipeline
 from doc2train.utils.validation import validate_and_report_system, create_validation_report
 from doc2train.utils.cache import get_cache_stats, cleanup_cache, optimize_cache
-from doc2train.processors.base_processor import list_all_processors, discover_plugins
+from doc2train.core.registries.processor_registry import (
+    list_all_processors,
+    get_supported_extensions_dict as get_processor_supported_exts
+)
+from doc2train.core.registries.llm_registry import (
+    list_llm_plugins,
+    get_available_providers,
+    get_llm_plugin
+)
 from doc2train.outputs.writers import OutputManager
 
 def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
@@ -212,8 +220,14 @@ def execute_info_command(config) -> Dict[str, Any]:
     print(f"\n📋 Available Processors:")
     list_all_processors()
 
+    # List extensions per processor
+    print("\n📦 Supported Extensions by Processor:")
+    for proc, exts in get_processor_supported_exts().items():
+        print(f"   {proc}: {', '.join(exts)}")
+
     # Cache info
     print(f"\n💾 Cache Information:")
+    from doc2train.utils.cache import get_cache_stats
     stats = get_cache_stats()
     print(f"   Cache entries: {stats['cache_entries']}")
     print(f"   Cache size: {stats['total_size_mb']:.1f} MB")
@@ -221,11 +235,18 @@ def execute_info_command(config) -> Dict[str, Any]:
     # LLM providers
     print(f"\n🤖 LLM Providers:")
     try:
-        from doc2train.core.llm_client import get_available_providers
         providers = get_available_providers()
         if providers:
             for provider in providers:
-                print(f"   ✅ {provider}")
+                plugin_cls = get_llm_plugin(provider)
+                status = "✅" if getattr(plugin_cls, "configured", lambda: True)() else "❌"
+                # Try to print supported types/capabilities if present
+                supported_types = getattr(plugin_cls, "supported_types", ["text"])
+                vision = getattr(plugin_cls, "supports_vision", False)
+                types_str = ", ".join(supported_types)
+                if vision and "image" not in supported_types:
+                    types_str += ", image"
+                print(f"   {status} {provider}: {types_str}")
         else:
             print(f"   ❌ No providers configured")
     except Exception as e:
@@ -236,49 +257,28 @@ def execute_info_command(config) -> Dict[str, Any]:
         'command': 'info'
     }
 
-def execute_plugin_command(args) -> Dict[str, Any]:
-    """Execute plugin-related commands"""
-    if hasattr(args, 'plugin_action'):
-        if args.plugin_action == 'list':
-            return execute_plugin_list_command()
-        elif args.plugin_action == 'discover':
-            return execute_plugin_discover_command(args)
-
-    return {'success': False, 'error': 'Unknown plugin command'}
 
 def execute_plugin_list_command() -> Dict[str, Any]:
     """List available plugins"""
     print("🔌 Available Processors (including plugins):")
     list_all_processors()
 
+    print("\n🤖 Available LLM Plugins:")
+    for name in list_llm_plugins():
+        plugin_cls = get_llm_plugin(name)
+        supported_types = getattr(plugin_cls, "supported_types", ["text"])
+        vision = getattr(plugin_cls, "supports_vision", False)
+        types_str = ", ".join(supported_types)
+        if vision and "image" not in supported_types:
+            types_str += ", image"
+        status = "✅" if getattr(plugin_cls, "configured", lambda: True)() else "❌"
+        print(f"   {status} {name}: {types_str}")
+
     return {
         'success': True,
         'command': 'plugin_list'
     }
 
-def execute_plugin_discover_command(args) -> Dict[str, Any]:
-    """Discover plugins in directory"""
-    plugin_dir = getattr(args, 'plugin_dir', 'plugins')
-
-    print(f"🔍 Discovering plugins in: {plugin_dir}")
-
-    if not Path(plugin_dir).exists():
-        print(f"❌ Plugin directory not found: {plugin_dir}")
-        return {
-            'success': False,
-            'command': 'plugin_discover',
-            'error': f'Plugin directory not found: {plugin_dir}'
-        }
-
-    discover_plugins(plugin_dir)
-
-    print(f"✅ Plugin discovery complete")
-
-    return {
-        'success': True,
-        'command': 'plugin_discover',
-        'plugin_dir': plugin_dir
-    }
 
 # Command router
 #TO BE REMOVED
@@ -300,8 +300,6 @@ def route_command(config: Dict[str, Any], file_paths: List[str] = None) -> Dict[
         return execute_info_command(config)
     elif command == 'cache':
         return execute_cache_command(config)
-    elif command == 'plugin':
-        return execute_plugin_command(config)
 
     # Processing commands
     if file_paths is not None:
@@ -407,75 +405,26 @@ def execute_list_providers_command() -> Dict[str, Any]:
     print("🤖 Available LLM Providers:")
 
     try:
-        from doc2train.core.llm_plugin_manager import get_available_providers, get_provider_capabilities
+        ipdb.set_trace()
         providers = get_available_providers()
-
-        builtin_providers = ['openai', 'deepseek', 'local']
-        plugin_providers = [p for p in providers if p not in builtin_providers]
-
-        # Show builtin providers
-        if any(p in providers for p in builtin_providers):
-            print("\n📦 Built-in Providers:")
-            for provider in builtin_providers:
-                if provider in providers:
-                    caps = get_provider_capabilities(provider)
-                    cap_list = []
-                    if caps.get('text'): cap_list.append('text')
-                    if caps.get('vision'): cap_list.append('vision')
-
-                    # Check if configured
-                    from config.settings import LLM_PROVIDERS
-                    config = LLM_PROVIDERS.get(provider, {})
-                    status = "✅" if config.get('api_key') else "❌"
-
-                    print(f"   {status} {provider}: {', '.join(cap_list)}")
-
-        # Show plugin providers
-        if plugin_providers:
-            print("\n🔌 Plugin Providers:")
-            from doc2train.core.llm_plugin_manager import get_plugin_manager
-            plugin_manager = get_plugin_manager()
-
-            for provider in plugin_providers:
-                info = plugin_manager.get_provider_info(provider)
-                if info:
-                    caps = info['capabilities']
-                    cap_list = []
-                    if caps.get('text'): cap_list.append('text')
-                    if caps.get('vision'): cap_list.append('vision')
-                    if caps.get('streaming'): cap_list.append('streaming')
-
-                    status = "✅" if info['config_valid'] else "❌"
-                    print(f"   {status} {provider}: {', '.join(cap_list)}")
-
-        if not providers:
+        if providers:
+            print()
+            for provider in providers:
+                plugin_cls = get_llm_plugin(provider)
+                supported_types = getattr(plugin_cls, "supported_types", ["text"])
+                vision = getattr(plugin_cls, "supports_vision", False)
+                types_str = ", ".join(supported_types)
+                if vision and "image" not in supported_types:
+                    types_str += ", image"
+                status = "✅" if getattr(plugin_cls, "configured", lambda: True)() else "❌"
+                print(f"   {status} {provider}: {types_str}")
+        else:
             print("   No providers available")
 
     except Exception as e:
         print(f"   ❌ Error listing providers: {e}")
 
     return {'success': True, 'command': 'list_providers'}
-
-def execute_discover_llm_plugins_command(config) -> Dict[str, Any]:
-    # Always include built-in plugins directory
-    plugin_dirs = ['plugins/llm_plugins']
-
-    # Add user-specified directories from YAML config
-    user_dirs = config.get('llm_plugin_dirs', [])
-    if isinstance(user_dirs, list):
-        plugin_dirs.extend(user_dirs)
-
-    print(f"🔍 Discovering plugins in: {', '.join(plugin_dirs)}")
-
-    try:
-        from core.llm_plugin_manager import discover_llm_plugins
-        discover_llm_plugins(plugin_dirs)
-        print("✅ Plugin discovery completed")
-    except Exception as e:
-        print(f"❌ Plugin discovery failed: {e}")
-        return {'success': False, 'error': str(e)}
-
-    return {'success': True, 'command': 'discover_plugins'}
 
 def execute_direct_media_command(args) -> Dict[str, Any]:
     """Execute direct media processing command"""

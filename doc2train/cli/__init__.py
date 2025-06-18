@@ -10,7 +10,7 @@ from .args import (
 
 from .commands import (
     execute_processing_command, execute_validate_command, execute_benchmark_command,
-    execute_cache_command, execute_info_command, execute_plugin_command,
+    execute_cache_command, execute_info_command,
     route_command, print_command_help, handle_keyboard_interrupt, format_command_results
 )
 
@@ -20,6 +20,6 @@ __all__ = [
 
     # Command execution
     'execute_processing_command', 'execute_validate_command', 'execute_benchmark_command',
-    'execute_cache_command', 'execute_info_command', 'execute_plugin_command',
+    'execute_cache_command', 'execute_info_command',
     'route_command', 'print_command_help', 'handle_keyboard_interrupt', 'format_command_results'
 ]

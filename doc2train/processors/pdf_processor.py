@@ -16,7 +16,12 @@ from doc2train.processors.pdf_utils.extraction import extract_page_images_safe
 
 class PDFProcessor(BaseProcessor):
     """PDF processor with smart analysis and full BaseProcessor functionality"""
-
+    processor_name = "pdf"
+    priority = 10
+    supported_extensions = [".pdf"]
+    description = "Extracts text and images from PDF files."
+    version = "1.1.0"
+    author = "Doc2Train Team"
     def __init__(self, config=None):
         super().__init__(config)
         self.supported_extensions = ['.pdf']

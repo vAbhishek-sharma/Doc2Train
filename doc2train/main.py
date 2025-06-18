@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from datetime import datetime
 from doc2train.utils.config_loader import get_config_loader, validate_config
-from doc2train.cli.commands import execute_discover_llm_plugins_command, execute_list_providers_command, route_command
+from doc2train.cli.commands import  execute_list_providers_command, route_command
 from doc2train.core.plugin_setup import set_plugins
 
 import ipdb
@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 try:
     # Import core functionality
     from doc2train.utils.files import get_supported_files
-    from doc2train.processors import get_processor_for_file, get_supported_extensions
+    from doc2train.core.registries.processor_registry import get_processor_for_file, _PROCESSOR_REGISTRY
     from doc2train.core.pipeline import ProcessingPipeline
 
     # Import utilities
@@ -106,9 +106,10 @@ def main():
 
         # 1) Validate the merged CLI+YAML config
         validate_config(config)
-
+        # ipdb.set_trace()
         # 2) Discover & register **all** plugins (LLM, Processor, Writer, Formatter)
         set_plugins(config)
+
         # 3) Now handle any plugin-related commands (list, discover, etc.)
         handle_plugin_commands(config)
         # 3. Handle resume logic (may need merged config)
@@ -572,12 +573,6 @@ def handle_plugin_commands(config) -> bool:
     Returns:config.get('use_async', True)
         True if a plugin command was executed (should exit)
     """
-    # List providers
-        # Discover plugins
-    #TO BE DELETED
-    # if config.get('discover_plugins', True):
-    #     execute_discover_llm_plugins_command(config)
-    #     return True
 
     if config.get('list_providers', True):
 
@@ -617,23 +612,6 @@ def handle_direct_media_processing(args) -> bool:
 
     return False
 
-#to remove
-def setup_plugins(config: Dict[str, Any]):
-    """
-    NEW: Setup and discover plugins based on configuration
-    """
-    # Discover LLM plugins if directory specified
-    if config.get('llm_plugin_dir'):
-        print(f"🔍 Loading plugins from: {config['llm_plugin_dir']}")
-        from core.llm_client import discover_llm_plugins
-        discover_llm_plugins(config['llm_plugin_dir'])
-
-    # Auto-discover from default directories
-    default_plugin_dirs = ['plugins/llm_plugins', './plugins', './llm_plugins']
-    for plugin_dir in default_plugin_dirs:
-        if Path(plugin_dir).exists():
-            from core.llm_client import discover_llm_plugins
-            discover_llm_plugins(plugin_dir)
 
 def execute_provider_capabilities_command() -> Dict[str, Any]:
     """Show detailed capabilities of all providers"""

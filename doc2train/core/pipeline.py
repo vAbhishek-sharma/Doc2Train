@@ -14,7 +14,7 @@ from doc2train.outputs.writers import OutputManager
 from doc2train.utils.resource_manager import resource_manager
 import os
 
-from doc2train.processors.base_processor import get_processor_for_file, discover_plugins
+from doc2train.core.registries.processor_registry import get_processor_for_file
 from doc2train.core.generator import generate_training_data
 from doc2train.core.llm_client import get_available_providers
 from doc2train.utils.progress import (
@@ -81,11 +81,6 @@ class ProcessingPipeline(BaseProcessor):
         return False, ""
 
     def _setup_pipeline(self):
-        """Setup pipeline components"""
-        # Discover plugins if plugin directory specified
-        if self.config.get('plugin_dir'):
-            discover_plugins(self.config['plugin_dir'])
-
         # Validate LLM providers for generation modes
         if self.config['mode'] in ['generate', 'full']:
             providers = get_available_providers()
