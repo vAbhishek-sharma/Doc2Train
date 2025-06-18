@@ -1,15 +1,40 @@
-# core/generator.py
-"""
-Simple training data generator - creates AI training data from extracted content
-Supports multiple output types: conversations, embeddings, Q&A, summaries
-Now with async LLM calls for faster processing
-"""
+# outputs/generator.py
 
-import json
-import os
-from typing import Dict, List, Any, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from doc2train.config.settings import *
+from doc2train.core.registries.generator_registry import get_generator
+from typing import Dict, List, Any
+
+def generate_data(text: str, gen_types: List[str], config: Dict) -> Dict[str, List[Dict]]:
+    """
+    Chunk input, route to plugins, merge results.
+    """
+    # Use your existing chunking logic (from extractor, etc.)
+    from doc2train.core.extractor import chunk_text
+    chunks = chunk_text(text, config=config)
+    results = {t: [] for t in gen_types}
+
+    for gen_type in gen_types:
+        gen_cls = get_generator(gen_type)
+        if not gen_cls:
+            print(f"⚠️ No generator plugin for: {gen_type}")
+            continue
+
+        plugin = gen_cls(config)
+        prompt = (
+            config.get("prompts", {})
+            .get("custom", {})
+            .get(gen_type)
+        )
+
+        for chunk in chunks:
+            output = plugin.generate(chunk, gen_type, prompt_template=prompt)
+            # Expect plugin to return a dict: {gen_type: [items]}
+            if output and isinstance(output, dict) and gen_type in output:
+                results[gen_type].extend(output[gen_type])
+            elif output:
+                results[gen_type].extend(output if isinstance(output, list) else [output])
+
+    return results
+
 
 def generate_training_data(text: str, generators: List[str] = None, images: List[Dict] = None,
                          custom_prompts: Dict[str, str] = None, use_async: bool = True) -> Dict[str, List]:

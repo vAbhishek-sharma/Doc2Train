@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from typing import Tuple, List, Dict
 from pathlib import Path
 
-from doc2train.processors.base_processor import BaseProcessor
+from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 
 class EPUBProcessor(BaseProcessor):
     """EPUB processor with full BaseProcessor functionality"""

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Dict, Any, List
 from doc2train.utils.plugin_loader import load_plugins_from_dirs
-from doc2train.processors.base_processor import BaseProcessor
+from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 
 class ProcessorPluginManager:
     def __init__(self, config: Dict[str, Any]):

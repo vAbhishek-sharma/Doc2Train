@@ -20,7 +20,7 @@ from doc2train.core.registries.llm_registry import (
     get_available_providers,
     get_llm_plugin
 )
-from doc2train.outputs.writers import OutputManager
+from doc2train.core.writers import OutputManager
 
 def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
     """Execute the main processing command with all enhancements"""
@@ -441,7 +441,7 @@ def execute_direct_media_command(args) -> Dict[str, Any]:
     print(f"🎬 Processing media directly: {input_path}")
 
     try:
-        from doc2train.core.llm_plugin_manager import process_media_directly
+        from doc2train.core.plugin_managers.llm_plugin_manager import process_media_directly
 
         provider = getattr(args, 'provider', None)
         prompt = getattr(args, 'media_prompt', None)

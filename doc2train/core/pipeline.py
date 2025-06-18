@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import threading
-from doc2train.outputs.writers import OutputManager
+from doc2train.core.writers import OutputManager
 from doc2train.utils.resource_manager import resource_manager
 import os
 

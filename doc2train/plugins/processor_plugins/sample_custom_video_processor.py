@@ -1,5 +1,5 @@
 # plugins/processors/custom_video_processor.py
-from doc2train.processors.base_processor import BaseProcessor
+from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 from doc2train.core.llm_client import process_media_directly
 
 class VideoProcessor(BaseProcessor):

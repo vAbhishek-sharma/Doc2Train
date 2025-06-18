@@ -5,7 +5,8 @@ _FORMATTER_PLUGINS: Dict[str, Type["BaseFormatter"]] = {}
 
 class BaseFormatter(ABC):
     """Base class for all output formatters"""
-
+    format_name = None
+    priority = 10
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.format_name = "base"
@@ -32,6 +33,25 @@ class BaseFormatter(ABC):
 
     def get_file_extension(self) -> str:
         """Get file extension for this format"""
+        return ".txt"
+
+    def format(self, data, data_type):
+        """
+        Dynamically dispatch to format_{data_type}, or fallback to generic.
+        """
+        method = getattr(self, f"format_{data_type}", None)
+        if callable(method):
+            return method(data)
+        return self.format_generic(data, data_type)
+
+    def format_generic(self, data, data_type):
+        """
+        Generic fallback: dump as JSON with type header.
+        """
+        import json
+        return json.dumps({"type": data_type, "data": data}, indent=2, ensure_ascii=False)
+
+    def get_file_extension(self):
         return ".txt"
 
 def register_formatter(name: str, cls: Type[BaseFormatter]):

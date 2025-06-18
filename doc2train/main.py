@@ -46,7 +46,7 @@ try:
     from doc2train.cli.args import create_enhanced_parser, parse_skip_pages, args_to_config
 
     # Import output handling
-    from doc2train.outputs.writers import OutputWriter
+    from doc2train.core.writers import OutputWriter
 
 except ImportError as e:
     print(f"❌ Import error: {e}")
@@ -582,7 +582,7 @@ def handle_plugin_commands(config) -> bool:
     # List plugins
     if config.get('list_plugins', True):
 
-        from core.llm_plugin_manager import list_llm_plugins
+        from doc2train.core.plugin_managers.llm_plugin_manager import list_llm_plugins
         list_llm_plugins()
         return True
 
@@ -619,7 +619,7 @@ def execute_provider_capabilities_command() -> Dict[str, Any]:
 
     try:
         from core.llm_client import get_available_providers
-        from core.llm_plugin_manager import get_plugin_manager
+        from doc2train.core.plugin_managers.llm_plugin_manager import get_plugin_manager
 
         providers = get_available_providers()
         plugin_manager = get_plugin_manager()

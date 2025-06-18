@@ -8,7 +8,7 @@ from PIL import Image
 from typing import Tuple, List, Dict
 from pathlib import Path
 
-from doc2train.processors.base_processor import BaseProcessor
+from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 
 class ImageProcessor(BaseProcessor):
     """Image processor with full BaseProcessor functionality"""

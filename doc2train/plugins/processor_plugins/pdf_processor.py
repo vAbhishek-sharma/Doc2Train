@@ -8,10 +8,10 @@ import io
 from PIL import Image
 from typing import Tuple, List, Dict
 from pathlib import Path
-from doc2train.processors.base_processor import BaseProcessor
-from doc2train.processors.pdf_utils.analyzer import SmartPDFAnalyzer
-from doc2train.processors.pdf_utils.common import  perform_ocr_on_page
-from doc2train.processors.pdf_utils.extraction import extract_page_images_safe
+from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
+from doc2train.utils.pdf_utils.analyzer import SmartPDFAnalyzer
+from doc2train.utils.pdf_utils.common import  perform_ocr_on_page
+from doc2train.utils.pdf_utils.extraction import extract_page_images_safe
 
 
 class PDFProcessor(BaseProcessor):
@@ -38,7 +38,7 @@ class PDFProcessor(BaseProcessor):
             # Use smart analyzer to determine optimal processing strategy
             if self.config.get('use_smart_analysis', True):
                 # Import here to avoid circular import
-                from doc2train.processors.pdf_utils.extraction import analyze_and_extract_pdf
+                from doc2train.utils.pdf_utils.extraction import analyze_and_extract_pdf
                 text, images, analysis = analyze_and_extract_pdf(file_path)
 
                 # Store analysis results for debugging/stats
