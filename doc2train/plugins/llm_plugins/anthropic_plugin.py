@@ -20,10 +20,10 @@ class AnthropicPlugin(BaseLLMPlugin):
     description = "Anthropic Claude LLM (vision & text)"
     version = "1.0.0"
     author = "Doc2Train Team"
+
     def __init__(self, config: Optional[Dict] = None):
         super().__init__(config)
         self.provider_name = 'anthropic'
-        ipdb.set_trace()
         self.api_key = self.config.get('api_key') or os.getenv('ANTHROPIC_API_KEY')
         self.base_url = self.config.get('base_url', 'https://api.anthropic.com/v1')
 

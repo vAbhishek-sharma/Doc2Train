@@ -2,7 +2,7 @@ import importlib.util
 import sys
 from pathlib import Path
 from typing import Dict, List, Type, Union
-
+import ipdb
 
 def load_plugins_from_dirs(
     dirs: List[Union[str, Path]],
@@ -27,6 +27,7 @@ def load_plugins_from_dirs(
         if not p.exists() or not p.is_dir():
             continue
         for file in p.glob("*.py"):
+            ipdb.set_trace()
             if file.name.startswith("_"):
                 # skip private or special modules
                 continue

@@ -20,9 +20,9 @@ import ipdb
 def set_plugins(config: dict):
     # --- LLM plugins ---
     llm_mgr = LLMPluginManager(config)
-    ipdb.set_trace()
     llm_configs = config.get("llm_providers", {})  # Assumes structure: {name: {provider config}}
     for name, cls in llm_mgr.plugins.items():
+
         provider_config = llm_configs.get(name, {})
         register_llm_plugin(name, cls, config=provider_config)
 

@@ -6,7 +6,7 @@ from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 class ProcessorPluginManager:
     def __init__(self, config: Dict[str, Any]):
         dirs = [
-            Path(__file__).parent.parent / 'plugins' / 'processor_plugins',
+            "doc2train.plugins.processor_plugins",
             *config.get('processor_plugin_dirs', [])
         ]
         pkg_prefix = "doc2train.plugins.processor_plugins"

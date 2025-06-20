@@ -15,7 +15,7 @@ from doc2train.utils.resource_manager import resource_manager
 import os
 
 from doc2train.core.registries.processor_registry import get_processor_for_file
-from doc2train.core.generator import generate_training_data
+from doc2train.core.generator import generate_data
 from doc2train.core.llm_client import get_available_providers
 from doc2train.utils.progress import (
     initialize_progress, start_file_processing, complete_file_processing,
@@ -376,7 +376,7 @@ class ProcessingPipeline(BaseProcessor):
             custom_prompts = self.config.get('custom_prompts', None)
             use_async = self.config.get('use_async', True)  # NEW: Async option
 
-            generated_data = generate_training_data(
+            generated_data = generated_data(
                 text,
                 generators=generators,
                 images=images if include_vision else None,
