@@ -11,11 +11,12 @@ import time
 import hashlib
 import json
 import re
-import regex
 import unicodedata
 from doc2train.utils.progress import start_file_processing, complete_file_processing, add_processing_error
 from doc2train.utils.cache import CacheManager
 from doc2train.utils.validation import validate_extraction_quality
+from doc2train.utils.common import save_image_data
+import ipdb
 class BaseProcessor(ABC):
     """
     Base class for all document processors with complete functionality
@@ -89,11 +90,9 @@ class BaseProcessor(ABC):
 
             # Extract content using implementation
             text, images = self.extract_content_impl(file_path)
-
             # Post-processing
             text = self._apply_text_filters(text)
             images = self._apply_image_filters(images)
-
             # Validate extraction quality
             if not self._validate_extraction_quality(text, images):
                 if not self.config.get('allow_low_quality', False):
@@ -388,3 +387,9 @@ class BaseProcessor(ABC):
         return stats
 
 
+    def _save_and_record_image(self, img_data: bytes, output_dir: str, base_name: str, extra: dict = None):
+
+        img_path = save_image_data(img_data, output_dir, base_name)
+        d = {'file_path': img_path}
+        if extra: d.update(extra)
+        return d

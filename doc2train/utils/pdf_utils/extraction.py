@@ -3,9 +3,77 @@
 PDF content extraction strategies for different document types
 """
 
+
+import fitz
+import io
+from PIL import Image
+from pathlib import Path
+from typing import List, Dict, Optional, Tuple
+from pathlib import Path
 import fitz  # PyMuPDF
 from typing import Dict, List, Tuple
-from .analyzer import SmartPDFAnalyzer, PDFAnalysis
+from doc2train.utils.pdf_utils.analyzer import SmartPDFAnalyzer, PDFAnalysis
+from doc2train.utils.common import save_image_data
+
+def get_ocr_config(config: Dict, quality_level: str = "medium") -> str:
+    """Get OCR config for pytesseract based on quality"""
+    quality_configs = {
+        "light": "--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
+        "medium": "--psm 6",
+        "heavy": "--psm 6 --oem 3 -c tessedit_do_invert=0"
+    }
+    return config.get('ocr_config') or quality_configs.get(quality_level, quality_configs["medium"])
+
+def perform_ocr_on_image_data(img_data: bytes, config: Optional[Dict] = None) -> str:
+    config = config or {}
+    if not config.get('use_ocr', True):
+        return ""
+    try:
+        import pytesseract
+        pil_image = Image.open(io.BytesIO(img_data))
+        if pil_image.mode not in ('RGB', 'L'):
+            pil_image = pil_image.convert('RGB')
+        ocr_quality = config.get('ocr_quality', 'medium')
+        ocr_config = get_ocr_config(config, ocr_quality)
+        ocr_text = pytesseract.image_to_string(pil_image, config=ocr_config)
+        return ocr_text.strip()
+    except ImportError:
+        if config.get('verbose'):
+            print("⚠️  pytesseract not available for OCR")
+        return ""
+    except Exception as e:
+        if config.get('verbose'):
+            print(f"⚠️  OCR failed: {e}")
+        return ""
+
+def perform_ocr_on_extracted_images(images: List[Dict], config: Optional[Dict] = None) -> List[Dict]:
+    config = config or {}
+    if not config.get('ocr_images', True):
+        return images
+    updated_images = []
+    for img in images:
+        updated_img = img.copy()
+        img_data = img.get('data')
+        if not img_data and img.get('file_path'):
+            try:
+                with open(img['file_path'], 'rb') as f:
+                    img_data = f.read()
+            except:
+                img_data = None
+        updated_img['ocr_text'] = perform_ocr_on_image_data(img_data, config) if img_data else ""
+        updated_images.append(updated_img)
+    return updated_images
+
+def combine_text_and_image_content(page_text: str, images: List[Dict], config: Optional[Dict] = None) -> str:
+    config = config or {}
+    if not config.get('include_image_text_in_content', False):
+        return page_text
+    image_texts = [img.get('ocr_text', '') for img in images if img.get('ocr_text')]
+    if image_texts:
+        return page_text + "\n\n" + "\n\n".join(image_texts)
+    return page_text
+
+
 
 
 def analyze_and_extract_pdf(file_path: str, config=None) -> Tuple[str, List[Dict], PDFAnalysis]:
@@ -363,10 +431,10 @@ def process_text_with_image_markers(text: str, images: List, page) -> str:
 
     return '\n'.join(processed_lines)
 
-
+#To UPDATE FUTURE SUPPORT
 def extract_table_focused_content(file_path: str, config=None) -> Tuple[str, List[Dict]]:
     """
-    Extract content optimized for tables and structured data
+    Extract content optimized for tables and structured data, plus optional image OCR.
     """
     config = config or {}
     verbose = config.get('verbose', False)
@@ -390,20 +458,16 @@ def extract_table_focused_content(file_path: str, config=None) -> Tuple[str, Lis
 
                 for table in tables:
                     try:
-                        # Extract table as structured data
                         table_data = table.extract()
                         if table_data:
-                            # Convert table to formatted text
                             table_text = format_table_as_text(table_data)
                             text_content += f"\n[TABLE on page {page_num + 1}]\n{table_text}\n[/TABLE]\n\n"
                     except:
-                        # Fallback to regular text extraction for this area
                         bbox = table.bbox
                         table_rect = fitz.Rect(bbox)
                         table_text = page.get_text(clip=table_rect)
                         text_content += f"\n[TABLE on page {page_num + 1}]\n{table_text}\n[/TABLE]\n\n"
         except:
-            # Tables not supported or error occurred
             pass
 
         # Regular text extraction for non-table content
@@ -411,9 +475,14 @@ def extract_table_focused_content(file_path: str, config=None) -> Tuple[str, Lis
         text_content += regular_text + "\n\n"
 
         # Extract images
+        page_images = []
         if config.get('extract_images', True):
-            page_images = extract_page_images_safe(page, page_num + 1, doc)
+            page_images = extract_page_images_safe(page, page_num + 1, doc, file_path, config.get('save_images', False))
+            if config.get('ocr_images', False):
+                page_images = perform_ocr_on_extracted_images(page_images, config)
             images.extend(page_images)
+            if config.get('include_image_text_in_content', False):
+                regular_text = combine_text_and_image_content(regular_text, page_images, config)
 
     doc.close()
     return text_content.strip(), images
@@ -489,198 +558,172 @@ def extract_form_focused_content(file_path: str, config=None) -> Tuple[str, List
 
         # Extract images
         if config.get('extract_images', True):
-            page_images = extract_page_images_safe(page, page_num + 1, doc)
+            page_images = extract_page_images_safe(page, page_num + 1, doc, file_path)
             images.extend(page_images)
 
     doc.close()
     return text_content.strip(), images
 
 def extract_text_focused(file_path: str, config=None) -> Tuple[str, List[Dict]]:
-    """Extract from text-focused PDFs"""
+    """
+    Extract from text-focused PDFs: primary text, light image OCR fallback
+    """
+    config = config or {}
+    verbose = config.get('verbose', False)
     try:
-        return extract_basic_content(file_path, config)
+        doc = fitz.open(file_path)
+        text_content = ""
+        images = []
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            page_text = page.get_text()
+            # OCR fallback if little/no text
+            if not page_text.strip() and config.get('use_ocr', True):
+                if verbose:
+                    print(f"   📝 OCR fallback for page {page_num + 1}")
+                pix = page.get_pixmap(matrix=fitz.Matrix(2,2))
+                img_data = pix.tobytes("png")
+                page_text = perform_ocr_on_image_data(img_data, config)
+            # Extract images
+            page_images = []
+            if config.get('extract_images', True):
+                page_images = extract_page_images_safe(page, page_num + 1, doc, file_path, config.get('save_images', False))
+                if config.get('ocr_images', False):
+                    page_images = perform_ocr_on_extracted_images(page_images, config)
+                images.extend(page_images)
+                page_text = combine_text_and_image_content(page_text, page_images, config)
+            text_content += page_text + "\n\n"
+        doc.close()
+        return text_content.strip(), images
     except Exception as e:
-        if config and config.get('debug', False):
+        if config.get('debug', False):
             import traceback
             print(f"🐛 DEBUG - Error in extract_text_focused:")
             traceback.print_exc()
-        # Return empty result instead of None
         return "", []
 
 def extract_image_focused(file_path: str, config=None) -> Tuple[str, List[Dict]]:
-    """Extract from image-heavy PDFs with minimal text"""
+    """
+    Extract from image-heavy PDFs: aggressive OCR on all images
+    """
     config = config or {}
     verbose = config.get('verbose', False)
-
     doc = fitz.open(file_path)
     text_content = ""
     images = []
-
+    config = config.copy()
+    config['ocr_images'] = True
+    config['ocr_quality'] = config.get('ocr_quality', 'medium')
     for page_num in range(len(doc)):
         page = doc[page_num]
-
-        # Try text extraction first
         page_text = page.get_text()
-        if not page_text.strip():
-            # Use OCR if no text
-            try:
-                import pytesseract
-                from PIL import Image
-                import io
-
-                pix = page.get_pixmap()
-                img_data = pix.tobytes("png")
-                pil_image = Image.open(io.BytesIO(img_data))
-                page_text = pytesseract.image_to_string(pil_image)
-                pix = None
-            except:
-                page_text = ""
-
+        if not page_text.strip() and config.get('use_ocr', True):
+            pix = page.get_pixmap(matrix=fitz.Matrix(2,2))
+            img_data = pix.tobytes("png")
+            page_text = perform_ocr_on_image_data(img_data, config)
+        page_images = extract_page_images_safe(page, page_num + 1, doc, file_path, config.get('save_images', False))
+        page_images = perform_ocr_on_extracted_images(page_images, config)
+        images.extend(page_images)
+        page_text = combine_text_and_image_content(page_text, page_images, config)
         text_content += page_text + "\n\n"
-
-        # Extract all images
-        page_images = page.get_images()
-        for img_index, img in enumerate(page_images):
-            try:
-                xref = img[0]
-                pix = fitz.Pixmap(doc, xref)
-
-                if pix.n - pix.alpha < 4:
-                    img_data = pix.tobytes("png")
-
-                    images.append({
-                        'page_num': page_num + 1,
-                        'image_index': img_index,
-                        'data': img_data,
-                        'context': page_text,
-                        'content_type': 'image_focused',
-                        'dimensions': (pix.width, pix.height)
-                    })
-
-                    if verbose:
-                        print(f"✅ Extracted image {img_index + 1} on page {page_num + 1}")
-
-                pix = None
-            except Exception as e:
-                if verbose:
-                    print(f"⚠️ Error extracting image {img_index} on page {page_num + 1}: {e}")
-                continue
-
     doc.close()
     return text_content.strip(), images
 
 
 def extract_with_heavy_ocr(file_path: str, config=None) -> Tuple[str, List[Dict]]:
-    """Extract from scanned documents using heavy OCR"""
+    """
+    Extract from scanned documents with maximum OCR power
+    """
     config = config or {}
     verbose = config.get('verbose', False)
-
-    if verbose:
-        print("🔍 Using heavy OCR processing for scanned document")
-
-    # For now, use image-focused approach with enhanced OCR
-    return extract_image_focused(file_path, config)
-
-
-def extract_basic_content(file_path: str, config=None) -> Tuple[str, List[Dict]]:
-    """Basic extraction without smart analysis"""
-    config = config or {}
-    verbose = config.get('verbose', False)
-
-    from .common import perform_ocr_on_page
-
     doc = fitz.open(file_path)
     text_content = ""
     images = []
-
+    heavy_config = config.copy()
+    heavy_config['ocr_quality'] = 'heavy'
+    heavy_config['ocr_images'] = True
+    heavy_config['use_ocr'] = True
     for page_num in range(len(doc)):
         page = doc[page_num]
-
-        # Extract text
-        page_text = page.get_text()
-
-        # If no text and OCR is enabled, try OCR
-        if not page_text.strip() and config.get('use_ocr', True):
-            page_text = perform_ocr_on_page(page, config)
-
+        # Always do page OCR (max quality)
+        if verbose:
+            print(f"   📄 Heavy OCR on page {page_num + 1}")
+        pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+        img_data = pix.tobytes("png")
+        page_ocr_text = perform_ocr_on_image_data(img_data, heavy_config)
+        page_images = extract_page_images_safe(page, page_num + 1, doc, file_path, config.get('save_images', False))
+        page_images = perform_ocr_on_extracted_images(page_images, heavy_config)
+        images.extend(page_images)
+        page_text = combine_text_and_image_content(page_ocr_text, page_images, heavy_config)
         text_content += page_text + "\n\n"
-
-        # Extract images if enabled
-        if config.get('extract_images', True):
-            page_images = extract_page_images_safe(page, page_num + 1, doc)
-            images.extend(page_images)
-
     doc.close()
     return text_content.strip(), images
 
-def extract_page_images_safe(page, page_num: int, doc) -> List[Dict]:
-    """
-    Safely extract images from a PDF page with error handling
 
-    Args:
-        page: PyMuPDF page object
-        page_num: Page number (1-based)
-        doc: PyMuPDF document object
-
-    Returns:
-        List of image dictionaries
+def extract_basic_content(file_path: str, config=None) -> Tuple[str, List[Dict]]:
     """
+    Basic extraction with optional image OCR (reliable fallback)
+    """
+    config = config or {}
+    verbose = config.get('verbose', False)
+    doc = fitz.open(file_path)
+    text_content = ""
     images = []
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        page_text = page.get_text()
+        if not page_text.strip() and config.get('use_ocr', True):
+            pix = page.get_pixmap(matrix=fitz.Matrix(2,2))
+            img_data = pix.tobytes("png")
+            page_text = perform_ocr_on_image_data(img_data, config)
+        page_images = []
+        if config.get('extract_images', True):
+            page_images = extract_page_images_safe(page, page_num + 1, doc, file_path, config.get('save_images', False))
+            if config.get('ocr_images', False):
+                page_images = perform_ocr_on_extracted_images(page_images, config)
+            page_text = combine_text_and_image_content(page_text, page_images, config)
+            images.extend(page_images)
+        text_content += page_text + "\n\n"
+    doc.close()
+    return text_content.strip(), images
 
+def extract_page_images_safe(page, page_num: int, doc, file_path: str, save_images: bool) -> List[Dict]:
+    images = []
     try:
         page_images = page.get_images(full=True)
-
         for img_index, img in enumerate(page_images):
             try:
-                # Skip if img doesn't have enough data
                 if len(img) < 7:
                     continue
-
                 xref = img[0]
-
-                # Extract image data safely
-                try:
-                    pix = fitz.Pixmap(doc, xref)
-
-                    # Skip very small images (likely icons/decorations)
-                    if pix.width * pix.height < 1000:
-                        del pix
-                        continue
-
-                    # Convert to PNG format
-                    if pix.n - pix.alpha < 4:  # GRAY or RGB
-                        img_data = pix.tobytes("png")
-
-                        # Get image position if possible
-                        try:
-                            img_rect = page.get_image_bbox(img)
-                            bbox = [img_rect.x0, img_rect.y0, img_rect.x1, img_rect.y1]
-                        except:
-                            bbox = None
-
-                        images.append({
-                            'page_num': page_num,
-                            'image_index': img_index,
-                            'data': img_data,
-                            'format': 'png',
-                            'dimensions': (pix.width, pix.height),
-                            'bbox': bbox,
-                            'xref': xref
-                        })
-
+                pix = fitz.Pixmap(doc, xref)
+                if pix.width * pix.height < 1000:
                     del pix
-
-                except Exception as e:
-                    # Skip problematic images
                     continue
-
-            except Exception as e:
-                # Skip this image and continue
+                if pix.n - pix.alpha < 4:
+                    img_data = pix.tobytes("png")
+                    try:
+                        img_rect = page.get_image_bbox(img)
+                        bbox = [img_rect.x0, img_rect.y0, img_rect.x1, img_rect.y1]
+                    except:
+                        bbox = None
+                    base_name = f"{Path(file_path).stem}_page{page_num}_img{img_index+1}"
+                    img_path = None
+                    if save_images:
+                        img_path = save_image_data(img_data, "output/images", base_name)
+                    images.append({
+                        'page_num': page_num,
+                        'image_index': img_index,
+                        'file_path': img_path,
+                        'data': img_data,
+                        'format': 'png',
+                        'dimensions': (pix.width, pix.height),
+                        'bbox': bbox,
+                        'xref': xref
+                    })
+                del pix
+            except Exception:
                 continue
-
-    except Exception as e:
-        # Return empty list if page processing fails
+    except Exception:
         pass
-
     return images
-

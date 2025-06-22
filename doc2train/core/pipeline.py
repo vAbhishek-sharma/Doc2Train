@@ -4,15 +4,14 @@ Complete processing pipeline for Doc2Train v2.0 Enhanced
 Orchestrates the entire document processing workflow with parallel execution
 """
 
-import ipdb
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
-import threading
 from doc2train.core.writers import OutputManager
 from doc2train.utils.resource_manager import resource_manager
 import os
+import ipdb
 
 from doc2train.core.registries.processor_registry import get_processor_for_file
 from doc2train.core.generator import generate_data
@@ -39,15 +38,15 @@ class ProcessingPipeline(BaseProcessor):
             'files_total': 0,
             'files_successful': 0,
             'files_failed': 0,
-            'consecutive_failures': 0,  # NEW: Track consecutive failures
+            'consecutive_failures': 0,  #  Track consecutive failures
             'total_text_chars': 0,
             'total_images': 0,
             'total_processing_time': 0.0,
             'errors': [],
-            'should_stop': False,  # NEW: Auto-stop flag
-            'stop_reason': ''  # NEW: Reason for stopping
+            'should_stop': False,  #  Auto-stop flag
+            'stop_reason': ''  #  Reason for stopping
         }
-        self.start_time = None  # NEW: Track processing start time
+        self.start_time = None  #  Track processing start time
         self.use_resource_limits = config.get("use_resource_limits", True)  # ADDED
 
         self.output_manager = OutputManager(config)
@@ -87,7 +86,7 @@ class ProcessingPipeline(BaseProcessor):
             if not providers:
                 print("⚠️ Warning: No LLM providers available for generation")
 
-    def process_files(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
+    def process_files(self, file_paths: List[str]) -> Dict[str, Any]:
         """
         Process multiple files with complete pipeline
 
@@ -111,15 +110,16 @@ class ProcessingPipeline(BaseProcessor):
 
         try:
             if self.config['mode'] == 'extract-only':
-                results = self._process_extraction_only(file_paths, config)
+
+                results = self._process_extraction_only(file_paths, self.config)
             elif self.config['mode'] == 'generate':
-                results = self._process_with_generation(file_paths, config)
+                results = self._process_with_generation(file_paths, self.config)
             elif self.config['mode'] == 'full':
-                results = self._process_full_pipeline(file_paths, config)
+                results = self._process_full_pipeline(file_paths,  self.config)
             elif self.config['mode'] == 'resume':
-                results = self._process_resume(file_paths,config)
+                results = self._process_resume(file_paths, self.config)
             elif self.config['mode'] == 'direct_to_llm':
-                results = self._process_media_directly(file_paths,config)
+                results = self._process_media_directly(file_paths, self.config)
             else:
                 raise ValueError(f"Unknown processing mode: {self.config['mode']}")
 
@@ -197,13 +197,13 @@ class ProcessingPipeline(BaseProcessor):
         """Resume processing from checkpoint"""
         print("🔄 Resume mode: Continuing from previous session...")
 
-        # NEW: Check if we have extracted data to work with
+        #  Check if we have extracted data to work with
         extracted_results = {}
 
         # Try to load from extraction cache or previous results
         for file_path in file_paths:
             try:
-                # NEW: Add progress update for resume mode
+                #  Add progress update for resume mode
                 file_name = Path(file_path).name
                 start_file_processing(file_name)
 
@@ -213,7 +213,7 @@ class ProcessingPipeline(BaseProcessor):
                 cached_result = processor._load_from_cache(file_path)
                 if cached_result:
                     extracted_results[file_path] = (cached_result['text'], cached_result['images'])
-                    # NEW: Show progress for cached results
+                    #  Show progress for cached results
                     print(f"📌 Loaded from cache: {file_name}")
                 else:
                     # If no cache, extract again
@@ -221,7 +221,7 @@ class ProcessingPipeline(BaseProcessor):
                     text, images = processor.extract_content(file_path, self.config.get('use_cache', True))
                     extracted_results[file_path] = (text, images)
 
-                # NEW: Update progress
+                #  Update progress
                 text_chars = len(extracted_results[file_path][0])
                 image_count = len(extracted_results[file_path][1])
                 complete_file_processing(file_name, text_chars, image_count, 0.0, True, "Resume")
@@ -242,7 +242,7 @@ class ProcessingPipeline(BaseProcessor):
     def _process_files_parallel(self, file_paths: List[str], process_func) -> Dict[str, Any]:
         """Process files in parallel using ThreadPoolExecutor"""
         max_workers = min(self.config.get('threads', 4), len(file_paths))
-        self.start_time = time.time()  # NEW: Track start time
+        self.start_time = time.time()  #  Track start time
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
             future_to_file = {
@@ -257,7 +257,7 @@ class ProcessingPipeline(BaseProcessor):
                     result = future.result()
                     self._update_stats(result)
 
-                    # NEW: Check for auto-stop after each file
+                    #  Check for auto-stop after each file
                     if self.stats['should_stop']:
                         print(f"\n⏸️  Auto-stopping: {self.stats['stop_reason']}")
                         self._save_checkpoint(file_paths, file_path)
@@ -275,7 +275,7 @@ class ProcessingPipeline(BaseProcessor):
 
                 except Exception as e:
                     self._handle_file_error(file_path, str(e))
-                    # NEW: Check for auto-stop after errors too
+                    #  Check for auto-stop after errors too
                     if self.stats['should_stop']:
                         print(f"\n⏸️  Auto-stopping: {self.stats['stop_reason']}")
                         self._save_checkpoint(file_paths, file_path)
@@ -291,7 +291,7 @@ class ProcessingPipeline(BaseProcessor):
                 result = process_func(file_path)
                 self._update_stats(result)
 
-                # NEW: Save immediately after each file is processed
+                #  Save immediately after each file is processed
                 if result['success']:
                     self._save_file_result_immediately(file_path, result)
                     if self.config.get('save_per_file'):
@@ -313,6 +313,7 @@ class ProcessingPipeline(BaseProcessor):
         if self.config.get("use_resource_limits", True):
             file_size = os.path.getsize(file_path)
             if not resource_manager.can_process_file(file_size):
+                #To update Show size in MB using predefined method for the same
                 return {
                     'success': False,
                     'file_path': file_path,
@@ -322,7 +323,6 @@ class ProcessingPipeline(BaseProcessor):
         try:
             # Get appropriate processor
             processor = get_processor_for_file(file_path, self.config)
-
             # Extract content
             text, images = processor.extract_content(file_path, self.config.get('use_cache', True))
 
@@ -374,14 +374,14 @@ class ProcessingPipeline(BaseProcessor):
             generators = self.config.get('generators', ['conversations'])
             include_vision = self.config.get('include_vision', False)
             custom_prompts = self.config.get('custom_prompts', None)
-            use_async = self.config.get('use_async', True)  # NEW: Async option
+            use_async = self.config.get('use_async', True)  #  Async option
 
             generated_data = generated_data(
                 text,
                 generators=generators,
                 images=images if include_vision else None,
                 custom_prompts=custom_prompts,
-                use_async=use_async  # NEW: Pass async option
+                use_async=use_async  #  Pass async option
             )
 
             extract_result['generated_data'] = generated_data
@@ -395,9 +395,9 @@ class ProcessingPipeline(BaseProcessor):
             return extract_result
 
     def _save_file_result_immediately(self, file_path: str, result: Dict[str, Any]):
-        """NEW: Save file result immediately using OutputWriter"""
+        """ Save file result immediately using OutputWriter"""
         try:
-            # NEW: Use the existing OutputWriter for proper saving
+            #  Use the existing OutputWriter for proper saving
             if result.get('text') and result.get('generated_data'):
                 # Save both extraction and generation data
                 file_results = {
@@ -424,35 +424,36 @@ class ProcessingPipeline(BaseProcessor):
             self.stats['files_successful'] += 1
             self.stats['total_text_chars'] += result.get('text_chars', 0)
             self.stats['total_images'] += result.get('image_count', 0)
-            self.stats['consecutive_failures'] = 0  # NEW: Reset consecutive failures
+            self.stats['consecutive_failures'] = 0  #  Reset consecutive failures
         else:
             self.stats['files_failed'] += 1
-            self.stats['consecutive_failures'] += 1  # NEW: Increment consecutive failures
+            self.stats['consecutive_failures'] += 1  #  Increment consecutive failures
             self.stats['errors'].append({
                 'file': result.get('file_name', 'unknown'),
                 'error': result.get('error', 'Unknown error')
             })
 
-            # NEW: Check for quota exceeded error
+            #  Check for quota exceeded error
             error_msg = result.get('error', '').lower()
             if ('quota' in error_msg or '429' in error_msg) and self.config.get('auto_stop_on_quota_exceeded', True):
                 self.stats['should_stop'] = True
                 self.stats['stop_reason'] = "API quota exceeded"
 
-        # NEW: Check if we should auto-stop
+        #  Check if we should auto-stop
         should_stop, reason = self._should_auto_stop()
         if should_stop:
             self.stats['should_stop'] = True
             self.stats['stop_reason'] = reason
-        def _handle_file_error(self, file_path: str, error: str):
-            """Handle file processing error"""
-            file_name = Path(file_path).name
-            self.stats['files_failed'] += 1
-            self.stats['errors'].append({
-                'file': file_name,
-                'error': error
-            })
-            add_processing_error(file_name, error)
+
+    def _handle_file_error(self, file_path: str, error: str):
+        """Handle file processing error"""
+        file_name = Path(file_path).name
+        self.stats['files_failed'] += 1
+        self.stats['errors'].append({
+            'file': file_name,
+            'error': error
+        })
+        add_processing_error(file_name, error)
 
     def _save_per_file_result(self, file_path: str, result: Dict[str, Any]):
         """Save individual file result immediately (fault-tolerant)"""
@@ -527,19 +528,22 @@ class ProcessingPipeline(BaseProcessor):
         """Clean up resources after processing completion"""
         if self.config.get('clear_cache_after_run', False):
             try:
-                result = self.perform_cache_cleanup(config=self.config, force_clear_if_needed=True)
+                # Use instance config
+                ProcessingPipeline.perform_cache_cleanup(config=self.config, force_clear_if_needed=True)
                 print("🧹 Cache cleanup completed")
             except Exception as e:
                 print(f"❌ Cache cleanup error: {e}")
                 import traceback
                 traceback.print_exc()
 
+    @staticmethod
     def perform_cache_cleanup(config: Optional[Dict[str, Any]] = None, force_clear_if_needed: bool = False) -> Dict[str, Any]:
         """Performs cache cleanup and optionally clears if cleanup didn't fully work."""
-        from utils.cache import get_cache_stats, cleanup_cache, clear_cache
+        from doc2train.utils.cache import get_cache_stats, cleanup_cache, clear_cache
 
         print("🧹 Cleaning up cache...")
 
+        # Use config if provided, else default values
         max_size_gb = config.get('max_cache_size', 5.0) if config else 5.0
         max_age_days = config.get('max_cache_age', 30) if config else 30
 
@@ -561,45 +565,6 @@ class ProcessingPipeline(BaseProcessor):
             'success': True,
             'command': 'cache_cleanup'
         }
-
-
-
-    def _save_checkpoint(self, all_files: List[str], current_file: str):
-        """Save checkpoint for resuming later"""
-        try:
-            processed_files = []
-            remaining_files = []
-            found_current = False
-
-            for file_path in all_files:
-                if file_path == current_file:
-                    found_current = True
-                    remaining_files.append(file_path)  # Include current file for retry
-                elif found_current:
-                    remaining_files.append(file_path)
-                else:
-                    processed_files.append(file_path)
-
-            checkpoint_data = {
-                'timestamp': time.time(),
-                'stop_reason': self.stats['stop_reason'],
-                'processed_files': processed_files,
-                'remaining_files': remaining_files,
-                'stats': self.stats,
-                'config': self.config
-            }
-
-            checkpoint_file = Path(self.config['output_dir']) / 'checkpoint.json'
-            with open(checkpoint_file, 'w') as f:
-                import json
-                json.dump(checkpoint_data, f, indent=2, default=str)
-
-            print(f"💾 Checkpoint saved: {checkpoint_file}")
-            print(f"📊 Progress: {len(processed_files)}/{len(all_files)} files completed")
-            print(f"🔄 To continue: python main.py --resume-from {checkpoint_file}")
-
-        except Exception as e:
-            print(f"⚠️  Error saving checkpoint: {e}")
 
 class PerformanceBenchmark(BaseProcessor):
     """Performance benchmarking for the processing pipeline"""
@@ -679,7 +644,7 @@ class BatchProcessor(BaseProcessor):
         self.config = config
         self.batch_size = config.get('batch_size', 10)
 
-    def process_in_batches(self, file_paths: List[str]) -> Dict[str, Any]:
+    def process_files(self, file_paths: List[str]) -> Dict[str, Any]:
         """Process files in batches to manage memory usage"""
         total_files = len(file_paths)
         total_results = {
@@ -702,7 +667,7 @@ class BatchProcessor(BaseProcessor):
 
             # Process batch
             pipeline = ProcessingPipeline(self.config)
-            batch_results = pipeline.process_files(batch_files, None)
+            batch_results = pipeline.process_files(batch_files)
 
             # Accumulate results
             total_results['files_processed'] += batch_results.get('files_processed', 0)

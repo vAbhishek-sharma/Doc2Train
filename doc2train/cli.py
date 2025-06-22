@@ -1,5 +1,5 @@
 # TO REUPDATE
-# NEW: doc2train/cli.py - Enhanced CLI Entry Point
+#  doc2train/cli.py - Enhanced CLI Entry Point
 """
 Enhanced CLI entry point for pip-installed package
 """

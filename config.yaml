@@ -16,9 +16,10 @@ processing:
   timeout: 300  # seconds
   max_file_size: "100MB"
   use_cache: true
-  save_per_file: false  # Save each file immediately after processing
-  # NEW: Auto-stop features
-  auto_stop_on_quota_exceeded: false  # Stop when API quota is hit
+  save_per_file: true  # Save each file immediately after processing
+
+  #  Auto-stop features
+  auto_stop_on_quota_exceeded: false  # Stop when LLM API quota is hit
   auto_stop_on_consecutive_failures: 3  # Stop after N consecutive failures
   auto_stop_after_time: null  # Stop after X minutes (null = no limit)
   auto_stop_after_files: null  # Stop after N files (null = no limit)
@@ -53,7 +54,7 @@ llm:
   provider: "openai"  # openai, deepseek, local
   model: ""  # Leave empty for auto-selection
   fallback_provider: "deepseek"
-  max_concurrent_calls: 5  # For async processing
+  max_concurrent_calls: 5  # For async processing multiple calls at a time f
   llm_providers:
     anthropic:
       api_key: "sk-ant-xxxx"
@@ -149,7 +150,7 @@ prompts:
 debug:
   verbose: false
   show_progress: true
-  show_images: false
+  save_images: false # extract and save images from epub pdf etc
   test_mode: false
   dry_run: false
   benchmark: false

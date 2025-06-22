@@ -3,11 +3,12 @@
 from pathlib import Path
 from doc2train.utils.plugin_loader import load_plugins_from_dirs
 from doc2train.plugins.generator_plugins.base_generator import BaseGenerator
+import doc2train
 
 class GeneratorPluginManager:
     def __init__(self, config):
         dirs = [
-            Path(__file__).parent.parent / 'plugins' / 'generator_plugins',
+            Path(doc2train.__file__).parent / "plugins" / "generator_plugins",
             *config.get('generator_plugin_dirs', [])
         ]
         pkg_prefix = "doc2train.plugins.generator_plugins"

@@ -1,4 +1,4 @@
-# NEW: plugins/llm_plugins/anthropic_plugin.py
+#  plugins/llm_plugins/anthropic_plugin.py
 """
 Sample Anthropic Claude plugin implementation
 """
@@ -8,7 +8,6 @@ import requests
 import json
 from typing import Dict, Any, List, Union, Optional
 from doc2train.plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
-import ipdb
 class AnthropicPlugin(BaseLLMPlugin):
     """
     Anthropic Claude provider plugin

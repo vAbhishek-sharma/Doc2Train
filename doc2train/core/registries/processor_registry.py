@@ -1,5 +1,5 @@
 from doc2train.core.registries.plugin_registry import PluginRegistry
-
+import ipdb
 class ProcessorRegistry(PluginRegistry):
     def __init__(self):
         super().__init__()
@@ -61,8 +61,10 @@ def register_processor(name: str, extensions, processor_cls):
     _PROCESSOR_REGISTRY.register(name, extensions, processor_cls)
 
 def get_processor_for_file(file_path, config=None):
+
     from pathlib import Path
     ext = Path(file_path).suffix
+
     cls = _PROCESSOR_REGISTRY.get_by_extension(ext)
     if cls:
         return cls(config)

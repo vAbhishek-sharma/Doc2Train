@@ -8,12 +8,17 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 from typing import Tuple, List, Dict
 from pathlib import Path
-
+import ipdb
+from doc2train.utils.image_save import save_image_data
 from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
-
 class EPUBProcessor(BaseProcessor):
     """EPUB processor with full BaseProcessor functionality"""
-
+    supported_extensions = ['.epub']
+    priority ='10'
+    description = ''
+    version = '1.0.0'
+    author = 'doc2train'
+    processor_name = 'EPUBProcessor'
     def __init__(self, config=None):
         super().__init__(config)
         self.supported_extensions = ['.epub']
@@ -30,9 +35,16 @@ class EPUBProcessor(BaseProcessor):
             Tuple of (text_content, images_list)
         """
         try:
+            from pathlib import Path
+            import os
             book = epub.read_epub(file_path)
             text_content = ""
             images = []
+
+            # Output directory logic (configurable)
+            base_output_dir = self.config.get('output_dir', 'output')
+            images_subdir = os.path.join(base_output_dir, "images", Path(file_path).stem)
+            os.makedirs(images_subdir, exist_ok=True)
 
             # Get page range constraints if specified
             start_page = self.config.get('start_page', 1)
@@ -42,7 +54,7 @@ class EPUBProcessor(BaseProcessor):
             if self.config.get('verbose'):
                 print(f"📚 Processing EPUB: {Path(file_path).name}")
 
-            # Extract text from chapters
+            # Extract text from chapters and images
             for item in book.get_items():
                 if item.get_type() == ebooklib.ITEM_DOCUMENT:
                     current_chapter += 1
@@ -61,6 +73,7 @@ class EPUBProcessor(BaseProcessor):
                         continue
 
                     # Parse HTML content
+                    from bs4 import BeautifulSoup
                     soup = BeautifulSoup(item.get_content(), 'html.parser')
 
                     # Extract text
@@ -76,16 +89,11 @@ class EPUBProcessor(BaseProcessor):
                             print(f"   ✅ Chapter {current_chapter}: {len(chapter_text)} chars")
 
                 elif item.get_type() == ebooklib.ITEM_IMAGE and self.config.get('extract_images', True):
-                    # Extract images
                     image_data = item.get_content()
-
-                    # Apply size filter
                     min_size = self.config.get('min_image_size', 1000)
                     if len(image_data) >= min_size:  # Basic size check
 
-                        # Try to get image dimensions
                         dimensions = self._get_image_dimensions(image_data)
-
                         if dimensions:
                             width, height = dimensions
                             if width * height >= min_size:
@@ -93,17 +101,27 @@ class EPUBProcessor(BaseProcessor):
                                 if self.config.get('use_ocr', True):
                                     ocr_text = self._ocr_image_data(image_data)
 
+                                # Compose a DRY base name
+                                base_name = f"chapter{current_chapter}_{item.get_name()}"
+
+                                img_path = None
+                                if self.config.get('save_images', False):
+                                    img_path = save_image_data(
+                                        image_data,
+                                        output_dir=images_subdir,
+                                        base_name=base_name
+                                    )
+
                                 image_info = {
                                     'filename': item.get_name(),
-                                    'data': image_data,
                                     'context': f"Image from EPUB: {item.get_name()}",
                                     'ocr_text': ocr_text,
                                     'dimensions': dimensions,
                                     'size_bytes': len(image_data),
-                                    'quality_score': self._assess_image_quality(image_data, dimensions)
+                                    'quality_score': self._assess_image_quality(image_data, dimensions),
+                                    'file_path': img_path
                                 }
                                 images.append(image_info)
-
                                 if self.config.get('verbose'):
                                     print(f"   🖼️ Image: {item.get_name()} ({width}x{height})")
 

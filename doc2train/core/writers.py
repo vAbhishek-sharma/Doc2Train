@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from doc2train.core.registries.writer_registry import get_writer
 from doc2train.core.formatters import format_data, smart_format_data
-
+import ipdb
 def save_items(
     items: List[Dict],
     output_file: Union[str, Path],

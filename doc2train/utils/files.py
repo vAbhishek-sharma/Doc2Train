@@ -40,8 +40,6 @@ def get_supported_files(directory: str, recursive: bool = True, max_files: Optio
         return []
 
     try:
-
-        from config.settings import SUPPORTED_FORMATS
         supported_extensions = _PROCESSOR_REGISTRY.get_supported_extensions()
     except ImportError:
         # Fallback to basic supported extensions

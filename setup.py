@@ -1,4 +1,4 @@
-# NEW: setup.py - Make it pip installable
+#  setup.py - Make it pip installable
 """
 Setup script to make Doc2Train installable via pip
 """

@@ -12,11 +12,16 @@ from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 from doc2train.utils.pdf_utils.analyzer import SmartPDFAnalyzer
 from doc2train.utils.pdf_utils.common import  perform_ocr_on_page
 from doc2train.utils.pdf_utils.extraction import extract_page_images_safe
-
+import ipdb
 
 class PDFProcessor(BaseProcessor):
     """PDF processor with smart analysis and full BaseProcessor functionality"""
-
+    supported_extensions = ['.pdf']
+    priority ='10'
+    description = ''
+    version = '1.0.0'
+    author = 'doc2train'
+    processor_name = 'PDFProcessor'
     def __init__(self, config=None):
         super().__init__(config)
         self.supported_extensions = ['.pdf']
@@ -68,9 +73,15 @@ class PDFProcessor(BaseProcessor):
     def _basic_pdf_extraction(self, file_path: str) -> Tuple[str, List[Dict]]:
         """Basic PDF extraction without smart analysis (fallback)"""
 
+        import os
         doc = fitz.open(file_path)
         text_content = ""
         images = []
+
+        # Output directory logic (configurable)
+        base_output_dir = self.config.get('output_dir', 'output')
+        images_subdir = os.path.join(base_output_dir, "images", Path(file_path).stem)
+        os.makedirs(images_subdir, exist_ok=True)
 
         # Get page range from config
         start_page = self.config.get('start_page', 1) - 1  # Convert to 0-based
@@ -100,7 +111,7 @@ class PDFProcessor(BaseProcessor):
 
             # Extract images if enabled
             if self.config.get('extract_images', True):
-                page_images = extract_page_images_safe(page, page_num + 1, doc)
+                page_images = self._extract_page_images_with_base(page, page_num + 1, doc, file_path, images_subdir)
                 images.extend(page_images)
 
         doc.close()
@@ -205,3 +216,55 @@ def extract_pdf_content(file_path: str, skip_analysis=False) -> Tuple[str, List[
     """Simple extraction function"""
     processor = PDFProcessor(config={'use_smart_analysis': not skip_analysis})
     return processor.extract_content_impl(file_path)
+
+def _extract_page_images_with_base(self, page, page_num: int, doc, file_path: str, images_subdir: str) -> List[Dict]:
+    """
+    Save images to images_subdir, returning metadata dicts with file paths (never raw bytes).
+    """
+    from pathlib import Path
+    images = []
+    try:
+        page_images = page.get_images(full=True)
+
+        for img_index, img in enumerate(page_images):
+            try:
+                if len(img) < 7:
+                    continue
+                xref = img[0]
+                try:
+                    pix = fitz.Pixmap(doc, xref)
+                    if pix.width * pix.height < 1000:
+                        del pix
+                        continue
+                    if pix.n - pix.alpha < 4:
+                        img_data = pix.tobytes("png")
+                        try:
+                            img_rect = page.get_image_bbox(img)
+                            bbox = [img_rect.x0, img_rect.y0, img_rect.x1, img_rect.y1]
+                        except:
+                            bbox = None
+
+                        base_name = f"page{page_num}_img{img_index+1}"
+                        extra = {
+                            'page_num': page_num,
+                            'image_index': img_index,
+                            'format': 'png',
+                            'dimensions': (pix.width, pix.height),
+                            'bbox': bbox,
+                            'xref': xref
+                        }
+                        img_info = self._save_and_record_image(
+                            img_data,
+                            output_dir=images_subdir,
+                            base_name=base_name,
+                            extra=extra
+                        )
+                        images.append(img_info)
+                    del pix
+                except Exception:
+                    continue
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return images

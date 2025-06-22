@@ -1,4 +1,4 @@
-# NEW: plugins/llm_plugins/google_plugin.py
+#  plugins/llm_plugins/google_plugin.py
 """
 Sample Google Gemini plugin implementation
 """

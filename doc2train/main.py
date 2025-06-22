@@ -106,7 +106,6 @@ def main():
 
         # 1) Validate the merged CLI+YAML config
         validate_config(config)
-        # ipdb.set_trace()
         # 2) Discover & register **all** plugins (LLM, Processor, Writer, Formatter)
         set_plugins(config)
 
@@ -160,11 +159,11 @@ def main():
             print(f"🧪 Test mode: Processing only {len(supported_files)} files")
 
         # Show processing plan
-        show_processing_plan_enhanced(config, supported_files)
+        show_processing_plan(config, supported_files)
 
         # Perform dry run if requested
         if config.get('dry_run'):
-            perform_enhanced_dry_run(supported_files, config)
+            perform_dry_run(supported_files, config)
             return 0
 
         # Confirm processing (unless in test mode)
@@ -180,8 +179,10 @@ def main():
         progress_display.set_show_progress(config.get('show_progress', True))
 
         results = route_command(config, supported_files)
-
-        # NEW: Check if processing was auto-stopped
+        if not results.get("success") and results.get("error"):
+            error = results.get("error")
+            print(f"\n❌ Error: {error} ")
+        #  Check if processing was auto-stopped
         if results.get('auto_stopped', False):
             print(f"\n⏸️  Processing auto-stopped: {results.get('stop_reason', 'Unknown reason')}")
             checkpoint_file = Path(config['output_dir']) / 'checkpoint.json'
@@ -200,7 +201,7 @@ def main():
     except KeyboardInterrupt:
         print("\n⚠️ Processing interrupted by user")
 
-        # NEW: Save checkpoint on manual interruption
+        #  Save checkpoint on manual interruption
         try:
             checkpoint_data = {
                 'timestamp': time.time(),
@@ -233,10 +234,10 @@ def main():
         return 1
 
 
-def show_processing_plan_enhanced(config: Dict, files: List[str]):
-    """Show enhanced processing plan"""
+def show_processing_plan(config: Dict, files: List[str]):
+    """Show processing plan"""
 
-    print(f"\n📋 Enhanced Processing Plan:")
+    print(f"\n📋 Processing Plan:")
     print(f"   Mode: {config.get('mode', 'N/A')}")
     print(f"   Files: {len(files)}")
     print(f"   Threads: {config.get('threads', 'N/A')}")
@@ -277,7 +278,7 @@ def show_processing_plan_enhanced(config: Dict, files: List[str]):
         performance_opts.append("save per file")
     if config.get('show_progress'):
         performance_opts.append("real-time progress")
-    if config.get('show_images'):
+    if config.get('save_images'):
         performance_opts.append("show images")
 
     if performance_opts:
@@ -305,7 +306,7 @@ def show_processing_plan_enhanced(config: Dict, files: List[str]):
 
     print()
 
-def perform_enhanced_dry_run(files: List[str], config: Dict):
+def perform_dry_run(files: List[str], config: Dict):
     """Enhanced dry run with detailed analysis"""
     print("🔍 Enhanced Dry Run - Detailed Analysis:\n")
     total_size = 0
@@ -515,7 +516,7 @@ def resume_from_checkpoint(checkpoint_file: str, args) -> int:
         return 1
 
 #TO refactor
-# NEW: Add config display function
+#  Add config display function
 def show_current_config():
     """Show current configuration"""
     try:
@@ -544,7 +545,7 @@ def show_current_config():
         print(f"❌ Error displaying config: {e}")
 
 #TO refactor
-# NEW: Add config saving function
+#  Add config saving function
 def save_config_from_args(args):
     """Save current args as config file"""
     try:
@@ -562,13 +563,9 @@ def save_config_from_args(args):
         print(f"❌ Error saving config: {e}")
 
 
-
-
-
-
 def handle_plugin_commands(config) -> bool:
     """
-    NEW: Handle plugin-related commands
+     Handle plugin-related commands
 
     Returns:config.get('use_async', True)
         True if a plugin command was executed (should exit)
@@ -579,14 +576,15 @@ def handle_plugin_commands(config) -> bool:
         execute_list_providers_command()
         return True
 
+    #TO UPDATE: to print list of plugins
     # List plugins
     if config.get('list_plugins', True):
 
-        from doc2train.core.plugin_managers.llm_plugin_manager import list_llm_plugins
+        from doc2train.core.registries.llm_registry import list_llm_plugins
         list_llm_plugins()
         return True
 
-
+    # TO UPDATE shift the method to commands.py
     # Provider capabilities
     if config.get('provider_capabilities', True):
 
@@ -598,7 +596,7 @@ def handle_plugin_commands(config) -> bool:
 #to remove
 def handle_direct_media_processing(args) -> bool:
     """
-    NEW: Handle direct media processing
+     Handle direct media processing
 
     Returns:
         True if direct media processing was executed (should exit)

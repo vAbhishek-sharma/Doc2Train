@@ -25,12 +25,13 @@ from doc2train.core.writers import OutputManager
 def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
     """Execute the main processing command with all enhancements"""
     # Handle special commands first
+
     if config.get('validate_only'):
         return execute_validate_command(config, file_paths)
 
     try:
         pipeline = create_processing_pipeline(config)
-        results = pipeline.process_files(file_paths, config)
+        results = pipeline.process_files(file_paths)
 
         # Save results (only for non-benchmark modes)
         if not config.get('benchmark'):
@@ -259,6 +260,7 @@ def execute_info_command(config) -> Dict[str, Any]:
 
 
 def execute_plugin_list_command() -> Dict[str, Any]:
+
     """List available plugins"""
     print("🔌 Available Processors (including plugins):")
     list_all_processors()
@@ -281,7 +283,6 @@ def execute_plugin_list_command() -> Dict[str, Any]:
 
 
 # Command router
-#TO BE REMOVED
 def route_command(config: Dict[str, Any], file_paths: List[str] = None) -> Dict[str, Any]:
     """
     Route command to appropriate handler
@@ -405,14 +406,14 @@ def execute_list_providers_command() -> Dict[str, Any]:
     print("🤖 Available LLM Providers:")
 
     try:
-        ipdb.set_trace()
         providers = get_available_providers()
+
         if providers:
             print()
             for provider in providers:
                 plugin_cls = get_llm_plugin(provider)
-                supported_types = getattr(plugin_cls, "supported_types", ["text"])
-                vision = getattr(plugin_cls, "supports_vision", False)
+                supported_types = plugin_cls.get("supported_types", ["text"])
+                vision = plugin_cls.get("supports_vision", False)
                 types_str = ", ".join(supported_types)
                 if vision and "image" not in supported_types:
                     types_str += ", image"

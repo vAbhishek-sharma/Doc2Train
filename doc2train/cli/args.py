@@ -123,7 +123,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     ocr_group.add_argument('--use-ocr', action='store_true', help='Enable OCR...')
     ocr_group.add_argument('--no-ocr', action='store_true', help='Disable OCR...')
 
-    # NEW: Smart PDF Analysis options
+    #  Smart PDF Analysis options
     smart_group = feature_group.add_mutually_exclusive_group()
     smart_group.add_argument('--smart-pdf-analysis', action='store_true', help='Enable smart PDF analysis...')
     smart_group.add_argument('--no-smart-analysis', action='store_true', help='Disable smart PDF analysis...')
@@ -281,7 +281,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
         help='Timeout per file in seconds '
     )
 
-    # NEW: Plugin-related arguments
+    #  Plugin-related arguments
     plugin_group = parser.add_argument_group('Plugin Options')
     plugin_group.add_argument('--llm-plugin-dir',
                              help='Directory containing LLM provider plugins')
@@ -292,7 +292,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     plugin_group.add_argument('--list-providers', action='store_true',
                              help='List all available LLM providers (builtin + plugins)')
 
-    # NEW: Direct media processing arguments
+    #  Direct media processing arguments
     media_group = parser.add_argument_group('Direct Media Processing')
     media_group.add_argument('--direct-media', action='store_true',
                             help='Process images/videos directly with LLM (skip traditional processors)')
@@ -301,7 +301,7 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
     media_group.add_argument('--force-vision', action='store_true',
                             help='Force use of vision models even for text-extractable content')
 
-    # NEW: Enhanced provider selection
+    #  Enhanced provider selection
     provider_group = parser.add_argument_group('Enhanced Provider Options')
     provider_group.add_argument('--provider-capabilities', action='store_true',
                                help='Show capabilities of all providers')
@@ -426,7 +426,7 @@ def args_to_config(args) -> Dict[str, Any]:
         'output_template': args.output_template,
 
         # Debug settings
-        'show_images': args.show_images,
+        'save_images': args.save_images,
         'verbose': args.verbose,
         'test_mode': args.test_mode,
         'benchmark': args.benchmark,
@@ -444,11 +444,11 @@ def args_to_config(args) -> Dict[str, Any]:
         'fail_on_error': not args.save_per_file,  # More tolerant with per-file saving
         'allow_low_quality': args.test_mode,      # More lenient in test mode
         'clear_cache_after_run': args.clear_cache_after if hasattr(args, 'clear_cache_after') else False,
-        # NEW: Async/sync control
+        #  Async/sync control
         'use_async': not getattr(args, 'sync', False),  # Default async unless --sync
         'max_concurrent_calls': getattr(args, 'async_calls', 5),
 
-        # NEW: Custom prompts from style
+        #  Custom prompts from style
         'custom_prompts': _get_prompts_for_style(getattr(args, 'prompt_style', 'default')),
     }
 

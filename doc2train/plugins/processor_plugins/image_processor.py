@@ -7,12 +7,17 @@ import os
 from PIL import Image
 from typing import Tuple, List, Dict
 from pathlib import Path
-
+import ipdb
 from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 
 class ImageProcessor(BaseProcessor):
     """Image processor with full BaseProcessor functionality"""
-
+    supported_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.gif', '.webp']
+    priority ='10'
+    description = ''
+    version = '1.0.0'
+    author = 'doc2train'
+    processor_name = 'ImageProcessor'
     def __init__(self, config=None):
         super().__init__(config)
         self.supported_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.gif', '.webp']
@@ -31,7 +36,6 @@ class ImageProcessor(BaseProcessor):
         try:
             # Load image
             image = Image.open(file_path)
-
             # Apply size filter
             min_size = self.config.get('min_image_size', 1000)
             image_area = image.width * image.height
@@ -47,6 +51,7 @@ class ImageProcessor(BaseProcessor):
                 ocr_text = self._perform_ocr(image)
 
             # Read image data for potential vision LLM processing
+            # Add vision llm option to image_processor for specifc images. or images inside the pdf and epubs . Cheaper and better than just reliance on vision models
             with open(file_path, 'rb') as f:
                 image_data = f.read()
 
@@ -68,7 +73,7 @@ class ImageProcessor(BaseProcessor):
 
             image_info = {
                 'path': file_path,
-                'data': image_data,
+                'file_path': file_path,
                 'ocr_text': ocr_text,
                 'context': f"Image file: {os.path.basename(file_path)}",
                 'dimensions': (image.width, image.height),
@@ -248,7 +253,7 @@ class ImageProcessor(BaseProcessor):
         except:
             return 2.0  # Default estimate
 
-
+#To Remove if not used
 # Keep backward compatibility function
 def extract_image_content(file_path: str) -> Tuple[str, List[Dict]]:
     """Backward compatibility function"""

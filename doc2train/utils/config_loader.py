@@ -87,7 +87,7 @@ class ConfigLoader:
             'debug': {
                 'verbose': False,
                 'show_progress': True,
-                'show_images': False,
+                'save_images': False,
                 'test_mode': False,
                 'dry_run': False,
                 'benchmark': False,
@@ -231,7 +231,7 @@ class ConfigLoader:
             # Debug settings
             'verbose': self.get('debug.verbose'),
             'show_progress': self.get('debug.show_progress'),
-            'show_images': self.get('debug.show_images'),
+            'save_images': self.get('debug.save_images'),
             'test_mode': self.get('debug.test_mode'),
             'dry_run': self.get('debug.dry_run'),
             'benchmark': self.get('debug.benchmark'),

@@ -12,7 +12,12 @@ from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 
 class TextProcessor(BaseProcessor):
     """Text processor with full BaseProcessor functionality"""
-
+    supported_extensions = ['.txt', '.srt', '.vtt']
+    priority ='10'
+    description = ''
+    version = '1.0.0'
+    author = 'doc2train'
+    processor_name = 'TextProcessor'
     def __init__(self, config=None):
         super().__init__(config)
         self.supported_extensions = ['.txt', '.srt', '.vtt']

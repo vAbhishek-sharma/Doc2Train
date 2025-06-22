@@ -68,7 +68,6 @@ class LLMRegistry(PluginRegistry):
 _LLM_REGISTRY = LLMRegistry()
 
 def register_llm_plugin(name: str, llm_cls, config: dict = None):
-    ipdb.set_trace()
     _LLM_REGISTRY.register(name, llm_cls, config)
 
 def get_llm_plugin(name: str):

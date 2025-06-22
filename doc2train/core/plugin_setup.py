@@ -16,6 +16,13 @@ from doc2train.core.registries.writer_registry import register_writer
 from doc2train.core.registries.formatter_registry import register_formatter
 from doc2train.core.registries.generator_registry import register_generator
 
+from doc2train.core.registries.llm_registry import _LLM_REGISTRY
+from doc2train.core.registries.processor_registry import _PROCESSOR_REGISTRY
+from doc2train.core.registries.writer_registry import _WRITER_REGISTRY
+from doc2train.core.registries.formatter_registry import _FORMATTER_REGISTRY
+from doc2train.core.registries.generator_registry import _GENERATOR_REGISTRY
+
+
 import ipdb
 def set_plugins(config: dict):
     # --- LLM plugins ---
@@ -28,6 +35,7 @@ def set_plugins(config: dict):
 
     # --- Processor plugins ---
     proc_mgr = ProcessorPluginManager(config)
+
     for info in proc_mgr.plugins.values():
         name = info.get('name')
         extensions = info.get('extensions', [])
@@ -48,3 +56,4 @@ def set_plugins(config: dict):
     gen_mgr = GeneratorPluginManager(config)
     for name, gen_cls in gen_mgr.plugins.items():
         register_generator(name, gen_cls)
+

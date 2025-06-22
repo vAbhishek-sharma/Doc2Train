@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import Dict, Any
 from doc2train.utils.plugin_loader import load_plugins_from_dirs
-from doc2train.core.base_writer import BaseWriter
+from doc2train.plugins.writer_plugins.base_writer import BaseWriter
+import doc2train
 
 class WriterPluginManager:
     def __init__(self, config: Dict[str, Any]):
         dirs = [
-            Path(__file__).parent.parent / 'plugins' / 'writer_plugins',
+            Path(doc2train.__file__).parent / "plugins" / "writer_plugins",
             *config.get('writer_plugin_dirs', [])
         ]
         pkg_prefix = "doc2train.plugins.writer_plugins"

@@ -1,4 +1,4 @@
-# NEW: plugins/llm_plugins/base_llm_plugin.py
+#  plugins/llm_plugins/base_llm_plugin.py
 """
 Base LLM plugin class for extending LLM provider support
 """
@@ -64,7 +64,7 @@ class BaseLLMPlugin(LLMPluginMetadataMixin,ABC):
 
     def process_direct_media(self, media_path: str, prompt: str = None, **kwargs) -> str:
         """
-        NEW: Process media directly without preprocessing
+         Process media directly without preprocessing
         Allows users to skip processors and send images/videos directly to LLM
 
         Args:
