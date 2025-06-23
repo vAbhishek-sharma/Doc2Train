@@ -7,7 +7,7 @@ import yaml
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
-
+import ipdb
 class ConfigLoader:
     """Load and manage YAML configuration with environment variable support"""
 
@@ -75,10 +75,28 @@ class ConfigLoader:
                     'deepseek': ''
                 }
             },
-            'generation': {
-                'types': ['conversations', 'qa_pairs'],
-                'chunk_size': 4000,
-                'overlap': 200
+            "dataset": {
+                # Text-based dataset pieces
+                "text": {
+                    "generators": [
+                        "conversations",
+                        "qa_pairs",
+                        "embeddings",
+                        "summaries",
+                    ],
+                    "chunk_size": 4000,
+                    "overlap": 200,
+                    "formatters": [
+                        "jsonl",
+                        "csv",
+                    ],
+                },
+                "media":{
+                    "generators":[
+                    "image_descriptions",
+                    "image_qa"],
+                    "formatters":["json"]
+                },
             },
             'prompts': {
                 'style': 'default',
@@ -224,6 +242,11 @@ class ConfigLoader:
             'generators': self.get('generation.types'),
             'chunk_size': self.get('generation.chunk_size'),
             'overlap': self.get('generation.overlap'),
+            'dataset': self.get('dataset'),
+
+            'text_generator': self.get(''),
+            'text': self.get(''),
+            'text': self.get(''),
 
             # Custom prompts
             'custom_prompts': self._get_custom_prompts(),
@@ -304,7 +327,6 @@ def load_config_from_yaml(config_file: str = "config.yaml") -> Dict[str, Any]:
 
 def validate_config(config: Dict[str, Any]) -> bool:
     errors = []
-
     if not Path(config['input_path']).exists():
         errors.append(f"Input path does not exist: {config['input_path']}")
 
@@ -329,10 +351,10 @@ def validate_config(config: Dict[str, Any]) -> bool:
     if not 0.0 <= config['quality_threshold'] <= 1.0:
         errors.append(f"quality_threshold must be between 0.0 and 1.0, got {config['quality_threshold']}")
 
-    if config['chunk_size'] < 100:
+    if config['dataset']['text']['chunk_size'] < 100:
         errors.append(f"chunk_size must be >= 100, got {config['chunk_size']}")
 
-    if config['overlap'] < 0 or config['overlap'] >= config['chunk_size']:
+    if config['dataset']['text']['overlap'] < 0 or config['dataset']['text']['overlap'] >= config['dataset']['text']['chunk_size']:
         errors.append(f"overlap must be >= 0 and < chunk_size, got {config['overlap']}")
 
     if config['timeout'] < 10:

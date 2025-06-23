@@ -241,19 +241,33 @@ def _call_openai_vision(prompt: str, image_data: Dict, provider_info: Dict) -> s
 
     return response.choices[0].message.content
 
-def test_provider(provider_name: str) -> bool:
-    try:
-        test_prompt = "Hello, please respond with 'OK' if you can understand this message."
-        plugin_cls = get_llm_plugin(provider_name)
-        if hasattr(plugin_cls, "call"):
-            response = plugin_cls.call(test_prompt, task="general")
-            if response and len(response.strip()) > 0:
-                print(f"✅ {provider_name} is working")
-                return True
-        print(f"❌ {provider_name} returned empty response")
+def test_provider(provider: str, model: Optional[str] = None) -> bool:
+    """
+    Attempt a minimal call to the named LLM provider to verify that
+    it’s correctly configured and reachable.
+    Returns True if the provider responds, False on any exception.
+    """
+    plugin_cls = get_llm_plugin(provider)
+    if not plugin_cls:
         return False
-    except Exception as e:
-        print(f"❌ {provider_name} test failed: {e}")
+
+    try:
+        # Instantiate the plugin (this should pick up API keys, base_url, etc.)
+        plugin = plugin_cls()
+
+        # If the plugin offers a lightweight health-check, use it:
+        if hasattr(plugin, "test_connection"):
+            plugin.test_connection()
+        else:
+            # Fallback: try listing available models or a zero-length completion
+            if hasattr(plugin, "list_models"):
+                plugin.list_models()
+            else:
+                # Last-ditch: tokenize an empty string
+                plugin.estimate_tokens("")
+        return True
+
+    except Exception:
         return False
 
 
@@ -261,46 +275,56 @@ def get_available_providers() -> List[str]:
     """Return list of currently configured LLM plugin providers."""
     return get_available_providers()
 
-def estimate_tokens(text: str) -> int:
+def estimate_tokens(text: str, model: Optional[str] = None) -> int:
     """
-    Estimate token count for cost calculation
-
-    Args:
-        text: Input text
-
-    Returns:
-        Estimated token count
+    Return an estimate of how many tokens `text` will encode to in the given model.
+    - If tiktoken is installed, uses actual encoding for OpenAI models.
+    - Otherwise falls back to a simple word-based heuristic.
     """
-    # Rough estimate: 1 token ≈ 4 characters for English
-    return len(text) // 4
+    try:
+        import tiktoken
+        # pick a default OpenAI model if none provided
+        model_name = model or "gpt-3.5-turbo-0613"
+        encoding = tiktoken.encoding_for_model(model_name)
+        return len(encoding.encode(text))
+    except (ImportError, KeyError):
+        # fallback: split on whitespace/punctuation
+        tokens = re.findall(r"\S+", text)
+        return len(tokens)
 
-def estimate_cost(text: str, task: str, provider: str = None) -> float:
-    """
-    Estimate cost for processing text
 
-    Args:
-        text: Text to process
-        task: Task type
-        provider: Specific provider (optional)
 
-    Returns:
-        Estimated cost in USD
-    """
-    if not provider:
-        provider_info = _get_provider_for_task(task)
-        provider = provider_info['provider']
+def estimate_cost(text: str,
+                  provider: str,
+                  model: Optional[str] = None,
+                  output_tokens: Optional[int] = None,
+                  num_images: int = 0) -> float:
 
-    tokens = estimate_tokens(text)
+    # 1. Resolve plugin & model
+    plugin_cls = get_llm_plugin(provider)
+    model = model or plugin_cls.get_default_model()
+    model_info = plugin_cls.supported_models().get(model, {})
 
-    # Rough cost estimates (as of 2024)
-    cost_per_1k_tokens = {
-        'openai': 0.00015,  # GPT-4o-mini
-        'deepseek': 0.00007,  # DeepSeek
-        'local': 0.0  # Free
-    }
+    # 2. Estimate tokens
+    input_tokens  = estimate_tokens(text)
+    output_tokens = output_tokens or input_tokens
 
-    rate = cost_per_1k_tokens.get(provider, 0.0001)
-    return (tokens / 1000) * rate
+    # 3. Pull cost metadata
+    cost_meta = model_info.get("cost", {})
+    cost = (input_tokens/1_000) * cost_meta.get("input_per_1k", 0.0)
+    cost += (output_tokens/1_000) * cost_meta.get("output_per_1k", 0.0)
+
+    # 4. If this is a vision model & charges per image
+    img_cost = cost_meta.get("image")
+    if img_cost and num_images:
+        if isinstance(img_cost, dict):
+            # tiered (low, medium, high)
+            cost += sum(img_cost.values()) * num_images
+        else:
+            cost += img_cost * num_images
+
+    return cost
+
 
 def process_media_directly(media_path: str, provider: str = None,
                           prompt: str = None, **kwargs) -> str:

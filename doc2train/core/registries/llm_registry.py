@@ -1,3 +1,4 @@
+from typing import Any, Dict, Optional
 from doc2train.core.registries.plugin_registry import PluginRegistry
 import ipdb
 class LLMRegistry(PluginRegistry):
@@ -64,6 +65,18 @@ class LLMRegistry(PluginRegistry):
             }
         return {}
 
+    @staticmethod
+    def get_all_models_for(provider_name: str) -> Dict[str, Any]:
+        plugin_cls = LLMRegistry._lookup_plugin_class(provider_name)
+        return plugin_cls.supported_models()
+
+    @staticmethod
+    def get_default_model(provider_name: str) -> str:
+        models = LLMRegistry.get_all_models_for(provider_name)
+        # pick first key or use some configured default
+        return next(iter(models))
+
+
 # Singleton instance
 _LLM_REGISTRY = LLMRegistry()
 
@@ -82,3 +95,7 @@ def get_available_providers():
 
 def list_llm_plugins():
     return list(_LLM_REGISTRY.all().keys())
+
+
+
+

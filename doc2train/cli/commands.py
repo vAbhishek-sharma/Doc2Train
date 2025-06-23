@@ -4,11 +4,14 @@ Complete CLI commands system for Doc2Train v2.0 Enhanced
 Handles all command execution with proper error handling and validation
 """
 
+from datetime import datetime
 import time
 from typing import Dict, List, Any
 from pathlib import Path
 import ipdb
-from doc2train.core.pipeline import ProcessingPipeline, PerformanceBenchmark ,create_processing_pipeline
+
+from doc2train.core.llm_client import test_provider
+from doc2train.core.pipeline import ProcessingPipeline, PerformanceBenchmark, create_processing_pipeline
 from doc2train.utils.validation import validate_and_report_system, create_validation_report
 from doc2train.utils.cache import get_cache_stats, cleanup_cache, optimize_cache
 from doc2train.core.registries.processor_registry import (
@@ -22,10 +25,10 @@ from doc2train.core.registries.llm_registry import (
 )
 from doc2train.core.writers import OutputManager
 
+# --- Processing Commands ---
+
 def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
     """Execute the main processing command with all enhancements"""
-    # Handle special commands first
-
     if config.get('validate_only'):
         return execute_validate_command(config, file_paths)
 
@@ -33,26 +36,21 @@ def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) ->
         pipeline = create_processing_pipeline(config)
         results = pipeline.process_files(file_paths)
 
-        # Save results (only for non-benchmark modes)
         if not config.get('benchmark'):
-            output_manager = OutputManager(config)
-            output_manager.save_all_results(results)
+            OutputManager(config).save_all_results(results)
 
         return results
     except Exception as e:
         return {'success': False, 'error': str(e), 'command': 'process'}
 
-def execute_validate_command(config, file_paths: List[str]) -> Dict[str, Any]:
+
+def execute_validate_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
     """Execute validation-only command"""
     print("🔍 Running comprehensive validation...")
 
-    # System validation
     system_valid = validate_and_report_system()
-
-    # Create detailed validation report
     validation_report = create_validation_report(file_paths, config)
 
-    # Save validation report
     output_dir = Path(config['output_dir'])
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -61,18 +59,14 @@ def execute_validate_command(config, file_paths: List[str]) -> Dict[str, Any]:
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(validation_report, f, indent=2, default=str)
 
-    # Print summary
     print(f"\n📋 Validation Summary:")
     print(f"   System requirements: {'✅ Passed' if system_valid else '❌ Failed'}")
-
     file_validation = validation_report['file_validation']
     print(f"   Files found: {file_validation['total_files']}")
     print(f"   Supported files: {file_validation['supported_files']}")
     print(f"   Total size: {file_validation['total_size_mb']:.1f} MB")
-
     if file_validation['unsupported_files'] > 0:
         print(f"   ⚠️ Unsupported files: {file_validation['unsupported_files']}")
-
     if file_validation['large_files'] > 0:
         print(f"   ⚠️ Large files: {file_validation['large_files']}")
 
@@ -82,7 +76,7 @@ def execute_validate_command(config, file_paths: List[str]) -> Dict[str, Any]:
         for error in config_errors:
             print(f"      • {error}")
     else:
-        print(f"   ✅ Configuration valid")
+        print("   ✅ Configuration valid")
 
     print(f"\n📄 Detailed report saved to: {report_file}")
 
@@ -93,18 +87,16 @@ def execute_validate_command(config, file_paths: List[str]) -> Dict[str, Any]:
         'system_valid': system_valid
     }
 
-def execute_benchmark_command(config, file_paths: List[str]) -> Dict[str, Any]:
+
+def execute_benchmark_command(config: Dict[str, Any], file_paths: List[str]) -> Dict[str, Any]:
     """Execute performance benchmark command"""
     print("📊 Running performance benchmark...")
-
-    # Limit files for benchmark
-    benchmark_files = file_paths[:6]  # Use max 6 files for benchmark
+    benchmark_files = file_paths[:6]
 
     try:
         benchmark = PerformanceBenchmark(config)
         benchmark_results = benchmark.process_files(benchmark_files)
 
-        # Save benchmark results
         output_dir = Path(config['output_dir'])
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -114,25 +106,14 @@ def execute_benchmark_command(config, file_paths: List[str]) -> Dict[str, Any]:
             json.dump(benchmark_results, f, indent=2, default=str)
 
         print(f"\n📄 Benchmark results saved to: {benchmark_file}")
-
-        return {
-            'success': True,
-            'command': 'benchmark',
-            'benchmark_results': benchmark_results
-        }
-
+        return {'success': True, 'command': 'benchmark', 'benchmark_results': benchmark_results}
     except Exception as e:
-        return {
-            'success': False,
-            'command': 'benchmark',
-            'error': str(e)
-        }
+        return {'success': False, 'command': 'benchmark', 'error': str(e)}
 
-#To reconfigure
+
 def execute_cache_command(config: Dict[str, Any]) -> Dict[str, Any]:
     """Execute cache-related commands"""
     action = config.get('cache_action')
-
     if action == 'stats':
         return execute_cache_stats_command()
     elif action == 'cleanup':
@@ -141,67 +122,49 @@ def execute_cache_command(config: Dict[str, Any]) -> Dict[str, Any]:
         return execute_cache_optimize_command()
     elif action == 'clear':
         return execute_cache_clear_command(config)
-
     return {'success': False, 'error': 'Unknown cache command'}
+
 
 def execute_cache_stats_command() -> Dict[str, Any]:
     """Show cache statistics"""
     print("📊 Cache Statistics:")
-
     stats = get_cache_stats()
-
     print(f"   Cache entries: {stats['cache_entries']}")
-    print(f"   Total size: {stats['total_size_mb']:.1f} MB ({stats['total_size_gb']:.2f} GB)")
-
+    print(f"   Total size: {stats['total_size_mb']:.1f} MB")
     if stats['cache_entries'] > 0:
         print(f"   Average size: {stats['avg_size_mb']:.2f} MB per entry")
         print(f"   Compression ratio: {stats['compression_ratio']:.0%}")
-
         if stats['file_types']:
-            print(f"   File types:")
+            print("   File types:")
             for ext, count in stats['file_types'].items():
                 print(f"     {ext}: {count} files")
-
     print(f"   Cache directory: {stats['cache_directory']}")
     print(f"   Max size limit: {stats['max_size_gb']:.1f} GB")
     print(f"   Expiry: {stats['expiry_days']} days")
+    return {'success': True, 'command': 'cache_stats', 'stats': stats}
 
-    return {
-        'success': True,
-        'command': 'cache_stats',
-        'stats': stats
-    }
 
-def execute_cache_cleanup_command(config) -> Dict[str, Any]:
-    """Execute user-initiated cache cleanup"""
+def execute_cache_cleanup_command(config: Dict[str, Any]) -> Dict[str, Any]:
+    """User-initiated cache cleanup"""
     return ProcessingPipeline.perform_cache_cleanup(config=config, force_clear_if_needed=False)
+
 
 def execute_cache_optimize_command() -> Dict[str, Any]:
     """Optimize cache"""
     print("📦 Optimizing cache...")
-
     optimize_cache()
+    return {'success': True, 'command': 'cache_optimize'}
 
-    return {
-        'success': True,
-        'command': 'cache_optimize'
-    }
 
-def execute_cache_clear_command(config) -> Dict[str, Any]:
+def execute_cache_clear_command(config: Dict[str, Any]) -> Dict[str, Any]:
     """Clear cache"""
     print("🗑️ Clearing cache...")
-
     from doc2train.utils.cache import clear_cache
+    clear_cache(config.get('cache_file', None))
+    return {'success': True, 'command': 'cache_clear'}
 
-    file_path = config.get('cache_file', None)
-    clear_cache(file_path)
 
-    return {
-        'success': True,
-        'command': 'cache_clear'
-    }
-
-def execute_info_command(config) -> Dict[str, Any]:
+def execute_info_command(config: Dict[str, Any]) -> Dict[str, Any]:
     """Execute info/status commands"""
     print("ℹ️ Doc2Train v2.0 Information:")
 
@@ -209,26 +172,24 @@ def execute_info_command(config) -> Dict[str, Any]:
     print(f"\n🖥️ System Information:")
     import sys
     print(f"   Python version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
-
     try:
         import psutil
-        memory_in_gigabytes = psutil.virtual_memory().total / (1024**3)
-        print(f"   Available memory: {memory_in_gigabytes:.1f} GB")
+        mem_gb = psutil.virtual_memory().total / (1024**3)
+        print(f"   Available memory: {mem_gb:.1f} GB")
     except ImportError:
-        print(f"   Memory: Unable to detect")
+        print("   Memory: Unable to detect")
 
-    # Processor info
+    # Processors
     print(f"\n📋 Available Processors:")
     list_all_processors()
 
-    # List extensions per processor
+    # Supported extensions
     print("\n📦 Supported Extensions by Processor:")
     for proc, exts in get_processor_supported_exts().items():
         print(f"   {proc}: {', '.join(exts)}")
 
     # Cache info
     print(f"\n💾 Cache Information:")
-    from doc2train.utils.cache import get_cache_stats
     stats = get_cache_stats()
     print(f"   Cache entries: {stats['cache_entries']}")
     print(f"   Cache size: {stats['total_size_mb']:.1f} MB")
@@ -238,29 +199,28 @@ def execute_info_command(config) -> Dict[str, Any]:
     try:
         providers = get_available_providers()
         if providers:
+            print()
             for provider in providers:
                 plugin_cls = get_llm_plugin(provider)
-                status = "✅" if getattr(plugin_cls, "configured", lambda: True)() else "❌"
-                # Try to print supported types/capabilities if present
-                supported_types = getattr(plugin_cls, "supported_types", ["text"])
+                cfg_ok = plugin_cls.configured() if hasattr(plugin_cls, "configured") else True
+                live_ok = test_provider(provider)
+                status_cfg = "✅" if cfg_ok else "❌"
+                status_rch = "✅" if live_ok else "❌"
+                types = getattr(plugin_cls, "supported_types", ["text"])
                 vision = getattr(plugin_cls, "supports_vision", False)
-                types_str = ", ".join(supported_types)
-                if vision and "image" not in supported_types:
+                types_str = ", ".join(types)
+                if vision and "image" not in types:
                     types_str += ", image"
-                print(f"   {status} {provider}: {types_str}")
+                print(f"   {provider:15}  Configured: {status_cfg}   Reachable: {status_rch}   Types: {types_str}")
         else:
-            print(f"   ❌ No providers configured")
+            print("   ❌ No providers found")
     except Exception as e:
         print(f"   ❌ Error checking providers: {e}")
 
-    return {
-        'success': True,
-        'command': 'info'
-    }
+    return {'success': True, 'command': 'info'}
 
 
 def execute_plugin_list_command() -> Dict[str, Any]:
-
     """List available plugins"""
     print("🔌 Available Processors (including plugins):")
     list_all_processors()
@@ -268,19 +228,18 @@ def execute_plugin_list_command() -> Dict[str, Any]:
     print("\n🤖 Available LLM Plugins:")
     for name in list_llm_plugins():
         plugin_cls = get_llm_plugin(name)
-        supported_types = getattr(plugin_cls, "supported_types", ["text"])
+        cfg_ok = plugin_cls.configured() if hasattr(plugin_cls, "configured") else True
+        live_ok = test_provider(name)
+        status_cfg = "✅" if cfg_ok else "❌"
+        status_rch = "✅" if live_ok else "❌"
+        types = getattr(plugin_cls, "supported_types", ["text"])
         vision = getattr(plugin_cls, "supports_vision", False)
-        types_str = ", ".join(supported_types)
-        if vision and "image" not in supported_types:
+        types_str = ", ".join(types)
+        if vision and "image" not in types:
             types_str += ", image"
-        status = "✅" if getattr(plugin_cls, "configured", lambda: True)() else "❌"
-        print(f"   {status} {name}: {types_str}")
+        print(f"   {name:15}  Configured: {status_cfg}   Reachable: {status_rch}   Types: {types_str}")
 
-    return {
-        'success': True,
-        'command': 'plugin_list'
-    }
-
+    return {'success': True, 'command': 'plugin_list'}
 
 # Command router
 def route_command(config: Dict[str, Any], file_paths: List[str] = None) -> Dict[str, Any]:

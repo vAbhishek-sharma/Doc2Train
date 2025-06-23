@@ -25,6 +25,7 @@ from datetime import datetime
 from doc2train.utils.config_loader import get_config_loader, validate_config
 from doc2train.cli.commands import  execute_list_providers_command, route_command
 from doc2train.core.plugin_setup import set_plugins
+from doc2train.cli.commands import execute_list_providers_command, execute_info_command, route_command
 
 import ipdb
 # Add project root to Python path
@@ -83,7 +84,6 @@ def main():
 
     try:
 
-
         if getattr(args, 'show_config', False):
             show_current_config()
             return 0
@@ -91,6 +91,7 @@ def main():
         if getattr(args, 'save_config', False):
             save_config_from_args(args)
             return 0
+
 
         # Validate arguments
 
@@ -143,6 +144,12 @@ def main():
         # if not validate_input_and_files(config):
         #     return 1
 
+
+
+
+        if getattr(args, 'info', False):
+            execute_info_command(config)
+            return 0
         # Get supported files
         #TO UPDATE: To add support for files from plugin processor folder
         supported_files = get_supported_files(config.get('input_path'))
@@ -234,78 +241,94 @@ def main():
         return 1
 
 
+
 def show_processing_plan(config: Dict, files: List[str]):
-    """Show processing plan"""
+    """Show processing plan for all dataset domains (text, media, audio, etc.)"""
 
     print(f"\n📋 Processing Plan:")
-    print(f"   Mode: {config.get('mode', 'N/A')}")
-    print(f"   Files: {len(files)}")
+    print(f"   Mode:    {config.get('mode', 'N/A')}")
+    print(f"   Files:   {len(files)}")
     print(f"   Threads: {config.get('threads', 'N/A')}")
-    print(f"   Output: {config.get('output_dir', 'output')}")
+    print(f"   Output:  {config.get('output_dir', 'output')}")
 
-    # Page control
+    # — Page range & skips —
     start_page = config.get('start_page', 1)
-    end_page = config.get('end_page', None)
+    end_page   = config.get('end_page')
     if start_page > 1 or end_page:
-        page_range = f"{start_page}"
-        if end_page:
-            page_range += f"-{end_page}"
-        else:
-            page_range += "-end"
-        print(f"   Page range: {page_range}")
+        pr = f"{start_page}-{end_page or 'end'}"
+        print(f"   Page range: {pr}")
+    if skips := config.get('skip_pages', []):
+        print(f"   Skip pages: {', '.join(map(str, skips))}")
 
-    skip_pages = config.get('skip_pages', [])
-    if skip_pages:
-        print(f"   Skip pages: {', '.join(map(str, skip_pages))}")
-
-    # Quality filters
-    quality_filters = []
+    # — Quality filters —
+    qf = []
     if config.get('min_image_size', 1000) > 1000:
-        quality_filters.append(f"images ≥{config['min_image_size']}px")
+        qf.append(f"images ≥{config['min_image_size']}px")
     if config.get('min_text_length', 100) > 100:
-        quality_filters.append(f"text ≥{config['min_text_length']} chars")
+        qf.append(f"text ≥{config['min_text_length']} chars")
     if config.get('skip_single_color_images'):
-        quality_filters.append("skip solid colors")
-    if config.get('header_regex'):
-        quality_filters.append(f"header regex: {config['header_regex']}")
+        qf.append("skip solid-color images")
+    if regex := config.get('header_regex'):
+        qf.append(f"header regex: {regex}")
+    if qf:
+        print(f"   Quality filters: {', '.join(qf)}")
 
-    if quality_filters:
-        print(f"   Quality filters: {', '.join(quality_filters)}")
+    # — Performance options —
+    po = []
+    for opt, label in [
+        ('save_per_file',      "save per file"),
+        ('show_progress',      "real-time progress"),
+        ('save_images',        "save images"),
+    ]:
+        if config.get(opt):
+            po.append(label)
+    if po:
+        print(f"   Options: {', '.join(po)}")
 
-    # Performance options
-    performance_opts = []
-    if config.get('save_per_file'):
-        performance_opts.append("save per file")
-    if config.get('show_progress'):
-        performance_opts.append("real-time progress")
-    if config.get('save_images'):
-        performance_opts.append("show images")
+    # — Dataset domains —
+    print("\n🚀 Dataset configuration summary:")
+    dataset_cfg = config.get('dataset', {})
 
-    if performance_opts:
-        print(f"   Options: {', '.join(performance_opts)}")
+    for domain, dc in dataset_cfg.items():
+        gens = dc.get('generators', [])
+        fmts = dc.get('formatters', [])
+        print(f"\n • {domain.capitalize()} dataset:")
+        if gens:
+            print(f"    • Generators: {', '.join(gens)}")
+        if fmts:
+            print(f"    • Formatters: {', '.join(fmts)}")
 
-    # Generators
-    if config.get('mode') != 'extract-only':
-        generators = config.get('generators', [])
-        if generators:
-            print(f"   Generators: {', '.join(generators)}")
+        # text-specific details
+        if domain == 'text':
+            cs  = dc.get('chunk_size')
+            ov  = dc.get('overlap')
+            if cs and ov is not None:
+                print(f"    • Chunk size/overlap: {cs}/{ov}")
 
-        # Estimate costs
-        try:
-            from core.llm_client import estimate_cost
-            total_size = sum(Path(f).stat().st_size for f in files)
-            total_text = total_size // 2  # Rough estimate
-            estimated_cost = estimate_cost(" " * total_text, 'general')
-            print(f"   Estimated cost: ${estimated_cost:.4f}")
-        except Exception:
-            pass
+            # cost estimate for text
+            try:
+                total_bytes = sum(Path(f).stat().st_size for f in files)
+                approx_tokens = total_bytes // 2  # rough bytes→tokens
+                tokens = estimate_tokens(" " * approx_tokens, model=config['llm']['model'])
+                cost = estimate_cost(
+                    text=" " * approx_tokens,
+                    provider=config['llm']['provider'],
+                    model=config['llm']['model'],
+                    output_tokens=approx_tokens
+                )
+                print(f"    • Estimated tokens: ~{tokens}")
+                print(f"    • Estimated text cost: ${cost:.4f}")
+            except Exception:
+                print("    • Cost estimate: unavailable")
 
-    # Vision
+    # vision flag (if still relevant)
     if config.get('include_vision'):
-        print(f"   Vision processing: enabled")
+        print("\n • Vision processing: enabled")
 
-    print()
+    print()  # blank line
 
+
+#To update  : Need to use the processor registry and add estimated file processing time to processors plugins
 def perform_dry_run(files: List[str], config: Dict):
     """Enhanced dry run with detailed analysis"""
     print("🔍 Enhanced Dry Run - Detailed Analysis:\n")

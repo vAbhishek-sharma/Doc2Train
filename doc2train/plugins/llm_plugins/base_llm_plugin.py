@@ -152,3 +152,15 @@ class BaseLLMPlugin(LLMPluginMetadataMixin,ABC):
             return False
 
 
+    @classmethod
+    def supported_models(cls) -> Dict[str, Any]:
+        """
+        Return a mapping of model-name → model-config dict.
+        Subclasses *should* override this to provide their own SUPPORTED_MODELS.
+        """
+        raise NotImplementedError(f"{cls.__name__} must implement supported_models()")
+
+
+    @classmethod
+    def get_cost_metadata(cls, model_name: str) -> Dict[str, float]:
+        return cls.supported_models().get(model_name, {}).get("cost", {})

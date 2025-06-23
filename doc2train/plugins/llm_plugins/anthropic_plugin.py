@@ -19,6 +19,13 @@ class AnthropicPlugin(BaseLLMPlugin):
     description = "Anthropic Claude LLM (vision & text)"
     version = "1.0.0"
     author = "Doc2Train Team"
+    capabilities = {
+                'text': True,
+                'vision': True,  # Claude 3+ supports vision
+                'streaming': True,
+                'function_calling': False,
+
+            }
 
     def __init__(self, config: Optional[Dict] = None):
         super().__init__(config)
@@ -158,3 +165,30 @@ class AnthropicPlugin(BaseLLMPlugin):
 
 
 
+    @classmethod
+    def supported_models(cls) -> Dict[str, Any]:
+        """
+        Claude family pricing and limits.
+        Developers can override this in forks or child classes.
+        """
+        return {
+            'claude-3-5-sonnet-20241022': {
+                'type': 'text',
+                'max_tokens': 200_000,
+                'context_window': 200_000,
+                'cost': {
+                    'input_per_1k':  3.00,
+                    'output_per_1k': 15.00,
+                }
+            },
+            'claude-3-7-sonnet-20241130': {
+                'type': 'text',
+                'max_tokens': 200_000,
+                'context_window': 200_000,
+                'cost': {
+                    'input_per_1k':  3.00,
+                    'output_per_1k': 15.00,
+                }
+            },
+            # …add more Claude variants here…
+        }

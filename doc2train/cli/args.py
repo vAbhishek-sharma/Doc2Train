@@ -291,6 +291,11 @@ def create_enhanced_parser() -> argparse.ArgumentParser:
                              help='List all loaded LLM plugins and their capabilities')
     plugin_group.add_argument('--list-providers', action='store_true',
                              help='List all available LLM providers (builtin + plugins)')
+    plugin_group.add_argument(
+        '--info',
+        action='store_true',
+        help='Show detailed system & provider information and exit'
+    )
 
     #  Direct media processing arguments
     media_group = parser.add_argument_group('Direct Media Processing')
@@ -380,14 +385,15 @@ def args_to_config(args) -> Dict[str, Any]:
         Configuration dictionary for processors and pipeline
     """
     config = {
-        #input files path
+        # Input files path
         'input_path': args.input_path,
-        # Processing mode and types
+        # Processing mode
         'mode': args.mode,
-        'generators': args.type,
+
+        # Include vision (for media pipelines)
         'include_vision': args.include_vision,
 
-        # Page control
+        # Pagination control
         'start_page': args.start_page,
         'end_page': args.end_page,
         'skip_pages': parse_skip_pages(args.skip_pages) if args.skip_pages else [],
@@ -407,25 +413,38 @@ def args_to_config(args) -> Dict[str, Any]:
         'show_progress': args.show_progress,
         'use_cache': not args.no_cache,
 
-        # Text processing
-        'chunk_size': args.chunk_size,
-        'overlap': args.overlap,
+        # Dataset specifications (unified)
+        'dataset': {
+            'text': {
+                'generators': args.type,           # e.g. ['conversations', 'qa_pairs']
+                'chunk_size': args.chunk_size,     # e.g. 4000
+                'overlap': args.overlap,           # e.g. 200
+                'formatters': args.format         # e.g. ['jsonl', 'json']
+            },
+            'media': {
+                'generators': args.media_generators,  # new CLI flag: --media-generators
+                'formatters': args.media_formatters   # new CLI flag: --media-formatters
+            }
+        },
 
-        # Features - INCLUDING SMART PDF ANALYSIS
+        # Features
         'use_ocr': args.use_ocr and not args.no_ocr,
-        'extract_images': True,  # Always extract images
+        'extract_images': True,
         'use_smart_analysis': args.smart_pdf_analysis and not args.no_smart_analysis,
 
-        # LLM settings
-        'provider': args.provider,
-        'model': args.model,
+        # LLM settings (nested for clarity)
+        'llm': {
+            'provider': args.provider,
+            'model': args.model,
+            'use_async': not getattr(args, 'sync', False),
+            'max_concurrent_calls': getattr(args, 'async_calls', 5)
+        },
 
         # Output settings
         'output_dir': args.output_dir,
-        'output_format': args.format,
         'output_template': args.output_template,
 
-        # Debug settings
+        # Debug / advanced
         'save_images': args.save_images,
         'verbose': args.verbose,
         'test_mode': args.test_mode,
@@ -433,22 +452,17 @@ def args_to_config(args) -> Dict[str, Any]:
         'dry_run': args.dry_run,
         'validate_only': args.validate_only,
 
-        # Advanced settings
+        'fail_on_error': not args.save_per_file,
+        'allow_low_quality': args.test_mode,
+        'clear_cache_after_run': getattr(args, 'clear_cache_after', False),
+
         'plugin_dir': args.plugin_dir,
         'config_file': args.config_file,
         'resume_from': args.resume_from,
         'max_file_size': parse_file_size(args.max_file_size),
         'timeout': args.timeout,
 
-        # Derived settings
-        'fail_on_error': not args.save_per_file,  # More tolerant with per-file saving
-        'allow_low_quality': args.test_mode,      # More lenient in test mode
-        'clear_cache_after_run': args.clear_cache_after if hasattr(args, 'clear_cache_after') else False,
-        #  Async/sync control
-        'use_async': not getattr(args, 'sync', False),  # Default async unless --sync
-        'max_concurrent_calls': getattr(args, 'async_calls', 5),
-
-        #  Custom prompts from style
+        # Custom prompt styles
         'custom_prompts': _get_prompts_for_style(getattr(args, 'prompt_style', 'default')),
     }
 
