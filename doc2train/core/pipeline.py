@@ -30,6 +30,19 @@ class BaseProcessor:
     def process_files(self, file_paths: List[str], args=None) -> Dict[str, Any]:
         raise NotImplementedError
 
+    def cleanup_after_processing(self):
+        """Clean up resources after processing completion"""
+        if self.config.get('clear_cache_after_run', False):
+            try:
+                # Use instance config
+                ProcessingPipeline.perform_cache_cleanup(config=self.config, force_clear_if_needed=True)
+                print("🧹 Cache cleanup completed")
+            except Exception as e:
+                print(f"❌ Cache cleanup error: {e}")
+                import traceback
+                traceback.print_exc()
+
+
 class ProcessingPipeline(BaseProcessor):
     """
     Complete processing pipeline with parallel execution and fault tolerance
@@ -111,7 +124,6 @@ class ProcessingPipeline(BaseProcessor):
         print(f"   Mode: {self.config['mode']}")
         print(f"   Files: {len(file_paths)}")
         print(f"   Threads: {self.config.get('threads', 1)}")
-
         try:
             if self.config['mode'] == 'extract-only':
 
@@ -148,11 +160,6 @@ class ProcessingPipeline(BaseProcessor):
 
             # Show completion summary
             show_completion_summary(self.config)
-
-            try:
-                self.cleanup_after_processing()
-            except Exception as e:
-                print(f"⚠️ Cache cleanup warning: {e}")
 
             return final_results
 
@@ -198,47 +205,64 @@ class ProcessingPipeline(BaseProcessor):
             return self._process_files_sequential(file_paths, self._extract_and_generate_single_file)
 
     def _process_resume(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
-        """Resume processing from checkpoint"""
+        """Resume processing from checkpoint, continuing in the same mode you started."""
         print("🔄 Resume mode: Continuing from previous session...")
+        mode = config.get('mode', 'extract-only')
 
-        #  Check if we have extracted data to work with
-        extracted_results = {}
-
-        # Try to load from extraction cache or previous results
-        for file_path in file_paths:
-            try:
-                #  Add progress update for resume mode
+        # 1) If we need extraction (extract-only, generate or full), reload or re-extract
+        extracted_results: Dict[str, Tuple[str, List[Any]]] = {}
+        if mode in ('extract-only', 'generate', 'full'):
+            for file_path in file_paths:
                 file_name = Path(file_path).name
                 start_file_processing(file_name)
-
-                processor = get_processor_for_file(file_path, self.config)
-
-                # Check if we have cached extraction results
-                cached_result = processor._load_from_cache(file_path)
-                if cached_result:
-                    extracted_results[file_path] = (cached_result['text'], cached_result['images'])
-                    #  Show progress for cached results
-                    print(f"📌 Loaded from cache: {file_name}")
-                else:
-                    # If no cache, extract again
-                    print(f"🔄 Re-extracting: {file_name}")
-                    text, images = processor.extract_content(file_path, self.config.get('use_cache', True))
+                try:
+                    proc = get_processor_for_file(file_path, config)
+                    cached = proc._load_from_cache(file_path)
+                    if cached:
+                        text, images = cached['text'], cached.get('images', [])
+                        print(f"📌 Loaded from cache: {file_name}")
+                    else:
+                        print(f"🔄 Re-extracting: {file_name}")
+                        text, images = proc.extract_content(file_path, config.get('use_cache', True))
                     extracted_results[file_path] = (text, images)
+                    complete_file_processing(file_name, len(text), len(images), 0.0, True, "Resume")
+                except Exception as e:
+                    print(f"⚠️ Error resuming {file_name}: {e}")
+            # stash it for downstream stages
+            self._extracted_results = extracted_results
 
-                #  Update progress
-                text_chars = len(extracted_results[file_path][0])
-                image_count = len(extracted_results[file_path][1])
-                complete_file_processing(file_name, text_chars, image_count, 0.0, True, "Resume")
+        # 2) Dispatch based on mode
+        if mode == 'extract-only':
+            # Build a summary of all extracted files and return
+            summary = {
+                'mode': mode,
+                'files_total': len(extracted_results),
+                'files_successful': 0,
+                'files_failed': 0,
+                'files': {}
+            }
+            for fp, (txt, imgs) in extracted_results.items():
+                if txt is not None:
+                    summary['files'][fp] = {
+                        'text_chars': len(txt),
+                        'image_count': len(imgs)
+                    }
+                    summary['files_successful'] += 1
+                else:
+                    summary['files_failed'] += 1
+            self.output_manager.save_all_results(summary)
+            return summary
 
-            except Exception as e:
-                print(f"⚠️ Error loading {file_path}: {e}")
-                continue
+        elif mode in ('generate', 'full'):
+            # resume the extract+generate pipeline
+            return self._process_with_generation(file_paths, config)
 
-        # Store extracted results for output writer
-        self._extracted_results = extracted_results
+        elif mode == 'direct_to_llm':
+            # resume the media‐direct pipeline
+            return self._process_media_directly(file_paths, config)
 
-        # Now generate training data from extracted content
-        return self._process_with_generation(file_paths)
+        else:
+            raise ValueError(f"Unknown resume mode: {mode!r}")
 
     def _process_media_directly(self, file_paths:List[str], config: Dict[str, Any])->Dict[str,Any]:
         pass
@@ -259,7 +283,6 @@ class ProcessingPipeline(BaseProcessor):
             'total_text_chars': 0,
             'total_images': 0,
         }
-        lock = threading.Lock()
 
         # 2. Dispatch work
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -275,28 +298,25 @@ class ProcessingPipeline(BaseProcessor):
                     result = future.result()
                     self._update_stats(result)
 
-                    # 4. Thread-safe accumulation
-                    with lock:
-                        if result.get('success'):
-                            all_results['files_successful'] += 1
-                            all_results['files'][file_path] = {
-                                'text_chars': result.get('text_chars', 0),
-                                'image_count': result.get('image_count', 0),
-                            }
-                        else:
-                            all_results['files_failed'] += 1
-                            all_results['errors'].append({
-                                'file': file_path,
-                                'error': result.get('error')
-                            })
-                        all_results['total_text_chars'] += result.get('text_chars', 0)
-                        all_results['total_images'] += result.get('image_count', 0)
+                    # 4. Accumulate (runs in main thread; no lock needed)
+                    if result.get('success'):
+                        all_results['files_successful'] += 1
+                        all_results['files'][file_path] = {
+                            'text_chars': result.get('text_chars', 0),
+                            'image_count': result.get('image_count', 0),
+                        }
+                    else:
+                        all_results['files_failed'] += 1
+                        all_results['errors'].append({
+                            'file': file_path,
+                            'error': result.get('error')
+                        })
+                    all_results['total_text_chars'] += result.get('text_chars', 0)
+                    all_results['total_images'] += result.get('image_count', 0)
 
                     # 5. (Optional) per-file write
-                    if result.get('success'):
-                        # self._save_file_result_immediately(file_path, result)
-                        if self.config.get('save_per_file'):
-                            self._save_per_file_result(file_path, result)
+                    if result.get('success') and self.config.get('save_per_file'):
+                        self._save_per_file_result(file_path, result)
 
                     update_progress_display()
 
@@ -316,9 +336,8 @@ class ProcessingPipeline(BaseProcessor):
                         print(f"\n⏸️  Auto-stopping: {self.stats['stop_reason']}")
                         self._save_checkpoint(file_paths, file_path)
                         break
-
         # 7. One-time summary dump
-        self.output_manager.save_all_results(all_results)
+        self.output_manager.save_all_results(all_results, 'batch_summary')
         return all_results
 
     def _process_files_sequential(self, file_paths: List[str], process_func) -> Dict[str, Any]:
@@ -359,7 +378,6 @@ class ProcessingPipeline(BaseProcessor):
 
                 # 4. (Optional) per-file write
                 if result.get('success'):
-                    # self._save_file_result_immediately(file_path, result)
                     if self.config.get('save_per_file'):
                         self._save_per_file_result(file_path, result)
 
@@ -370,7 +388,7 @@ class ProcessingPipeline(BaseProcessor):
                 update_progress_display()
 
         # 5. One-time summary dump
-        self.output_manager.save_all_results(all_results)
+        self.output_manager.save_all_results(all_results, 'batch_summary')
         return all_results
 
     def _extract_single_file(self, file_path: str) -> Dict[str, Any]:
@@ -562,31 +580,6 @@ class ProcessingPipeline(BaseProcessor):
 
         return result
 
-
-    def _save_file_result_immediately(self, file_path: str, result: Dict[str, Any]):
-        """ Save file result immediately using OutputWriter"""
-        try:
-            #  Use the existing OutputWriter for proper saving
-            if result.get('text') and result.get('generated_data'):
-                # Save both extraction and generation data
-                file_results = {
-                    file_path: result['generated_data']
-                }
-                self.output_writer.save_generated_data(file_results)
-            elif result.get('text'):
-                # Save only extraction data
-                extraction_results = {
-                    'mode': self.config['mode'],
-                    'extracted_data': {file_path: (result['text'], result.get('images', []))},
-                    'files_processed': 1,
-                    'successful': 1,
-                    'config_used': self.config
-                }
-                self.output_manager.save_all_results(extraction_results)
-
-        except Exception as e:
-            print(f"⚠️ Error saving immediate results for {Path(file_path).name}: {e}")
-
     def _update_stats(self, result: Dict[str, Any]):
         """Update processing statistics"""
         if result['success']:
@@ -729,18 +722,6 @@ class ProcessingPipeline(BaseProcessor):
 
         except Exception as e:
             print(f"⚠️  Error saving checkpoint: {e}")
-
-    def cleanup_after_processing(self):
-        """Clean up resources after processing completion"""
-        if self.config.get('clear_cache_after_run', False):
-            try:
-                # Use instance config
-                ProcessingPipeline.perform_cache_cleanup(config=self.config, force_clear_if_needed=True)
-                print("🧹 Cache cleanup completed")
-            except Exception as e:
-                print(f"❌ Cache cleanup error: {e}")
-                import traceback
-                traceback.print_exc()
 
     @staticmethod
     def perform_cache_cleanup(config: Optional[Dict[str, Any]] = None, force_clear_if_needed: bool = False) -> Dict[str, Any]:

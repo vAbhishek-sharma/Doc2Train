@@ -32,6 +32,7 @@ class LLMRegistry(PluginRegistry):
     def get_available_providers(self):
         available = []
         for name, llm_cls in self.all().items():
+
             config = self._provider_configs.get(name, {})
             # Use classmethod for config check
             if hasattr(llm_cls, "configured"):

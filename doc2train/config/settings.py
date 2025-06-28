@@ -1,3 +1,4 @@
+#TO be Deprecated and removed
 # config/settings.py
 """
 Simple configuration for Doc2Train v2.0

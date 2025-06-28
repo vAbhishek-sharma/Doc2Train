@@ -1,5 +1,5 @@
 ### This is just a Proof of concept right Now  ###
-###         Further research is needed         ###
+###         And currently underwork            ###
 # doc2train/api.py - REST API Interface
 """
 FastAPI REST API for Doc2Train

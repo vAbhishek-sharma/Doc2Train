@@ -4,7 +4,12 @@ from doc2train.core.llm_client import process_media_directly
 
 class VideoProcessor(BaseProcessor):
     """Custom video processor using direct LLM analysis"""
-
+    supported_extensions = ['.mp4', '.avi', '.mov', '.mkv']
+    priority ='10'
+    description = ''
+    version = '1.0.0'
+    author = 'doc2train'
+    processor_name = 'VideoProcessor (Sample)'
     def __init__(self, config=None):
         super().__init__(config)
         self.supported_extensions = ['.mp4', '.avi', '.mov', '.mkv']

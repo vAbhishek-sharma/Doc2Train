@@ -1,3 +1,4 @@
+#TO be Deprecated and removed
 # doc2train/utils/config.py
 """
 Configuration management utilities

@@ -22,8 +22,9 @@ from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from datetime import datetime
+from doc2train.core.llm_client import estimate_cost, estimate_tokens
 from doc2train.utils.config_loader import get_config_loader, validate_config
-from doc2train.cli.commands import  execute_list_providers_command, route_command
+from doc2train.cli.commands import  execute_direct_media_command, execute_list_providers_command, route_command
 from doc2train.core.plugin_setup import set_plugins
 from doc2train.cli.commands import execute_list_providers_command, execute_info_command, route_command
 
@@ -143,9 +144,6 @@ def main():
         # TO DO: Need to confirm if its holds value here in the flow?
         # if not validate_input_and_files(config):
         #     return 1
-
-
-
 
         if getattr(args, 'info', False):
             execute_info_command(config)

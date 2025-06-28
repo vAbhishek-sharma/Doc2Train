@@ -7,6 +7,8 @@ Output Writer system for Doc2Train
 - Used by pipeline for saving generated and per-file results
 """
 
+from datetime import datetime
+import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from doc2train.core.registries.writer_registry import get_writer
@@ -113,16 +115,34 @@ class OutputManager:
     def __init__(self, config=None):
         self.config = config or {}
 
-    def save_all_results(self, extraction_results: Dict[str, Any]):
+    def save_all_results(
+        self,
+        extraction_results: Dict[str, Any],
+        file_name: Optional[str] = 'summary_results'
+    ) -> Path:
         """
         Save all results (summary, batch outputs).
+
+        :param extraction_results: The data to serialize as JSON.
+        :param file_name:      Optional custom filename (e.g. 'my_results.json').
+                            If not provided, defaults to 'summary_results_<timestamp>.json'.
+        :return:               Path to the written JSON file.
         """
+        # 1. Ensure output directory exists
         output_dir = Path(self.config.get('output_dir', './outputs'))
         output_dir.mkdir(parents=True, exist_ok=True)
-        summary_file = output_dir / "summary_results.json"
-        import json
+
+        # 2. Determine filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        summary_file = output_dir / f"{file_name}_{timestamp}.json"
+
+        # 3. Write JSON
         with open(summary_file, 'w', encoding='utf-8') as f:
             json.dump(extraction_results, f, indent=2, ensure_ascii=False)
+
+        # 4. Return the path in case caller wants to know where it went
+        return summary_file
 
 # If you ever want to support smart_format_data, add a wrapper like:
 def smart_format_data(items, data_type, config=None):

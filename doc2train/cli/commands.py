@@ -36,8 +36,14 @@ def execute_processing_command(config: Dict[str, Any], file_paths: List[str]) ->
         pipeline = create_processing_pipeline(config)
         results = pipeline.process_files(file_paths)
 
+
         if not config.get('benchmark'):
-            OutputManager(config).save_all_results(results)
+            OutputManager(config).save_all_results(results, 'final_summary')
+
+        try:
+            pipeline.cleanup_after_processing()
+        except Exception as e:
+            print(f"⚠️ Cache cleanup warning: {e}")
 
         return results
     except Exception as e:
@@ -179,12 +185,8 @@ def execute_info_command(config: Dict[str, Any]) -> Dict[str, Any]:
     except ImportError:
         print("   Memory: Unable to detect")
 
-    # Processors
-    print(f"\n📋 Available Processors:")
-    list_all_processors()
-
     # Supported extensions
-    print("\n📦 Supported Extensions by Processor:")
+    print("\n📦 Available Processors:")
     for proc, exts in get_processor_supported_exts().items():
         print(f"   {proc}: {', '.join(exts)}")
 
@@ -226,6 +228,7 @@ def execute_plugin_list_command() -> Dict[str, Any]:
     list_all_processors()
 
     print("\n🤖 Available LLM Plugins:")
+
     for name in list_llm_plugins():
         plugin_cls = get_llm_plugin(name)
         cfg_ok = plugin_cls.configured() if hasattr(plugin_cls, "configured") else True
