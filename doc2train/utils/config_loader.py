@@ -236,6 +236,15 @@ class ConfigLoader:
             'model': self.get('llm.model'),
             'max_concurrent_calls': self.get('llm.max_concurrent_calls'),
 
+            #generators
+            'text_generators':self.get('dataset.text.generators'),
+            'images_generators':self.get('dataset.media.formatters'),
+
+            #formatter
+            'text_formatters':self.get('dataset.text.generators'),
+            'text_formatters':self.get('dataset.media.formatters'),
+
+
             # Generation settings
             'generators': self.get('generation.types'),
             'chunk_size': self.get('generation.chunk_size'),

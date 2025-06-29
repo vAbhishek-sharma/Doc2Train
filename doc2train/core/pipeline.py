@@ -26,6 +26,8 @@ from doc2train.utils.progress import (
 )
 from doc2train.utils.validation import validate_input_and_files
 from doc2train.utils.process import ProcessManager
+from doc2train.core.registries.formatter_registry import get_formatter
+
 class BaseProcessor:
     def process_files(self, file_paths: List[str], args=None) -> Dict[str, Any]:
         raise NotImplementedError
@@ -71,7 +73,6 @@ class ProcessingPipeline(BaseProcessor):
             self.config['threads'] = resource_manager.get_optimal_workers(
                 self.stats.get('files_total', 1)
             )
-
         self._setup_pipeline()
 
     def _should_auto_stop(self) -> Tuple[bool, str]:
@@ -458,28 +459,28 @@ class ProcessingPipeline(BaseProcessor):
                 # nothing to generate
                 return extract_result
 
-            # 2. Call your LLM generator
-            text_cfg = self.config['dataset']['text']
             generated = generate_data(
                 text,
-                generators     = text_cfg.get('generators', []),
-                images         = images if self.config.get('include_vision', False) else None,
-                custom_prompts = self.config.get('custom_prompts'),
-                use_async      = self.config['llm']['use_async']
+                images,
+               self.config
             )
 
             # 3. Persist the full output to disk
-            out_dir = Path(self.config['output_dir']) / "generated"
-            out_dir.mkdir(parents=True, exist_ok=True)
-            fname = Path(file_path).stem + "_dataset.json"
-            gen_file = out_dir / fname
-            with open(gen_file, 'w', encoding='utf-8') as f:
-                json.dump(generated, f, ensure_ascii=False, indent=2)
+            for fmt_name in self.config.get('text_formatters', []):
+                fmt_cls = get_formatter(fmt_name)
+                if not fmt_cls:
+                    continue
+                formatter = fmt_cls(self.config)
+                # assume write() method handles file naming
+                formatter.write(generated, batch_idx=1)
+                # if formatter exposes last output path, record it
+                if hasattr(formatter, 'last_output_path'):
+                    extract_result['generated_paths'].append(formatter.last_output_path)
+
 
             # 4. Update only the metadata in your result
             extract_result['generation_successful'] = True
             extract_result['generated_count']       = len(generated)
-            extract_result['generated_path']        = str(gen_file)
 
             # 5. (Optional) drop the big blob if it snuck in
             extract_result.pop('generated_data', None)
@@ -851,7 +852,6 @@ class BatchProcessor(BaseProcessor):
 
         for batch_num, batch_files in enumerate(batches, 1):
             print(f"\n🔄 Processing batch {batch_num}/{len(batches)} ({len(batch_files)} files)...")
-
             # Process batch
             pipeline = ProcessingPipeline(self.config)
             batch_results = pipeline.process_files(batch_files)
@@ -872,7 +872,7 @@ class BatchProcessor(BaseProcessor):
 
 
 # Factory function for creating appropriate processor
-def create_processing_pipeline(config: Dict[str, Any]) -> ProcessingPipeline:
+def create_processing_pipeline(config: Dict[str, Any]) -> BaseProcessor:
     """Create appropriate processing pipeline based on configuration"""
     if config.get('benchmark'):
         return PerformanceBenchmark(config)

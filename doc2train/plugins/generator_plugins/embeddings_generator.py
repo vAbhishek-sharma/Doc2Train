@@ -1,18 +1,24 @@
-# plugins/generator_plugins/embeddings_generator.py
+# doc2train/plugins/generator_plugins/embeddings_generator.py
+from typing import Any, Dict, List, Optional
+from doc2train.core.generator_base import BaseGenerator
 
-from doc2train.plugins.generator_plugins.base_generator import BaseGenerator
 
 class EmbeddingsGenerator(BaseGenerator):
-    generator_name = "embeddings"
-    types_supported = ["embeddings"]
-    priority = 10
+    """
+    Generator plugin for embeddings.
+    The user is expected to provide a prompt_template that defines a valid JSON
+    output structure, for example:
+    {
+      "embeddings": [
+        {"text": "string", "vector": [0.1, 0.2, ...]},
+        ...
+      ]
+    }
+    """
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config, gen_type="embeddings")
+        # no fixed schema: rely on user-provided prompt_template
 
-    def generate(self, chunk, gen_type, prompt_template=None):
-        prompt = prompt_template or self.config.get("prompts", {}).get("custom", {}).get("embeddings")
-        # Insert actual LLM call here
-        return {
-            "embeddings": [
-                {"sentence1": "Doc2Train is modular.", "sentence2": "The tool supports plugins.", "similarity": 0.92},
-                {"sentence1": "It's not a monolith.", "sentence2": "It's flexible.", "similarity": 0.81}
-            ]
-        }
+    def _parse(self, parsed_json: Any) -> List[Dict[str, Any]]:
+        # Expect top-level "embeddings" key
+        return parsed_json.get("embeddings", [])

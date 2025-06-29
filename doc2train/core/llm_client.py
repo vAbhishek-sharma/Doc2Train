@@ -9,6 +9,7 @@ import openai
 import requests
 import json
 import base64
+import ipdb
 from typing import Dict, Any, Optional, List  # Added this line
 from doc2train.config.settings import *
 from doc2train.core.registries.llm_registry import (
@@ -16,6 +17,7 @@ from doc2train.core.registries.llm_registry import (
     get_available_providers,
     list_llm_plugins
 )
+from doc2train.core.registries.llm_registry import get_available_providers as _registry_get_providers
 
 
 def call_llm(prompt: str, task: str = 'general', max_retries: int = 3) -> str:
@@ -273,7 +275,7 @@ def test_provider(provider: str, model: Optional[str] = None) -> bool:
 
 def get_available_providers() -> List[str]:
     """Return list of currently configured LLM plugin providers."""
-    return get_available_providers()
+    return _registry_get_providers()
 
 def estimate_tokens(text: str, model: Optional[str] = None) -> int:
     """

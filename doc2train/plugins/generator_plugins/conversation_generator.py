@@ -1,22 +1,32 @@
-# plugins/generator_plugins/conversation_generator.py
+# -------------------------------------------------------------
+# doc2train/plugins/generator_plugins/conversations_generator.py
+from typing import Any, Dict, List, Optional
+from doc2train.core.generator_base import BaseGenerator
 
-from doc2train.plugins.generator_plugins.base_generator import BaseGenerator
 
-class ConversationGenerator(BaseGenerator):
-    generator_name = "conversations"
-    types_supported = ["conversations"]
-    priority = 10
-
-    def generate(self, chunk, gen_type, prompt_template=None):
-        prompt = prompt_template or self.config.get("prompts", {}).get("custom", {}).get("conversations")
-        # This is where you'd call your LLM (abstracted for demo)
-        return {
-            "conversations": [
-                {
-                    "messages": [
-                        {"role": "user", "content": "What is Doc2Train?"},
-                        {"role": "assistant", "content": "Doc2Train is a modular document processing tool."}
-                    ]
-                }
-            ]
+class ConversationsGenerator(BaseGenerator):
+    """
+    Generator plugin for dialogue or conversation turns.
+    Emits JSON like:
+    {
+      "conversations": [
+        {"speaker": "string", "text": "string"},
+        ...
+      ]
+    }
+    """
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config, gen_type="conversations")
+        self.schema = """
+        {
+          "conversations": [
+            {"speaker": "string", "text": "string"},
+            …
+          ]
         }
+        """
+
+    def _parse(self, parsed_json: Any) -> List[Dict[str, Any]]:
+        return parsed_json.get("conversations", [])
+
+
