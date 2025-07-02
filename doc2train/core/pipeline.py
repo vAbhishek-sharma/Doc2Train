@@ -130,6 +130,7 @@ class ProcessingPipeline(BaseProcessor):
 
                 results = self._process_extraction_only(file_paths, self.config)
             elif self.config['mode'] == 'generate':
+
                 results = self._process_with_generation(file_paths, self.config)
             elif self.config['mode'] == 'full':
                 results = self._process_full_pipeline(file_paths,  self.config)
@@ -458,13 +459,7 @@ class ProcessingPipeline(BaseProcessor):
             if not text.strip():
                 # nothing to generate
                 return extract_result
-
-            generated = generate_data(
-                text,
-                images,
-               self.config
-            )
-
+            generated = generate_data(text,images,self.config)
             # 3. Persist the full output to disk
             for fmt_name in self.config.get('text_formatters', []):
                 fmt_cls = get_formatter(fmt_name)

@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from doc2train.core.extractor import chunk_text
 from doc2train.core.registries.llm_registry import get_llm_client
-
+import ipdb
 
 class BaseGenerator(ABC):
     """
@@ -18,20 +18,25 @@ class BaseGenerator(ABC):
       - Calling the LLM (with JSON‐retry logic)
       - Aggregating & returning parsed results
     """
+    generator_name = None
+    priority = 10
+    description = None
+    version = "1.0.0"
+    author = "Doc2Train Team"
 
     def __init__(self, config: Dict[str, Any], gen_type: str):
         self.config    = config
         self.gen_type  = gen_type
         self.client    = get_llm_client(config)
         self.prompts   = config.get("custom_prompts", {})
-        self.use_async = config["llm"].get("use_async", False)
+        self.use_async = config.get("use_async", False)
 
         # retry behavior
         self.max_retries = config["llm"].get("max_retries", 3)
         self.retry_backoff = config["llm"].get("retry_backoff", 1)
         self.retry_template = config["llm"].get(
             "retry_prompt",
-            "Your output wasn’t valid JSON.  Please re‐emit exactly valid JSON matching this schema:\n\n{schema}\n\nPrevious output:\n{previous}"
+            "Your output wasn't valid JSON.  Please re-emit exactly valid JSON matching this schema:\n\n{schema}\n\nPrevious output:\n{previous}"
         )
 
     def generate(
@@ -54,12 +59,17 @@ class BaseGenerator(ABC):
         all_items: List[Dict[str, Any]] = []
 
         for chunk in chunks:
-            prompt = tpl.format(text=chunk)
+            if '{chunk}' in tpl:
+                prompt = tpl.format(chunk=chunk)
+            elif '{text}' in tpl:
+                prompt = tpl.format(text=chunk)
+            else:
+                prompt = tpl
 
             raw: Optional[str] = None
             for attempt in range(1, self.max_retries + 1):
                 if images is not None:
-                    raw = self.client.call_vision(prompt, image_data=images)
+                    raw = self.client.call_vision(prompt, images, self.config.get('model'))
                 else:
                     raw = self.client.call_text(prompt, task=self.gen_type)
 

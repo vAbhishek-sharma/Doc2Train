@@ -1,6 +1,5 @@
 # plugins/processors/custom_video_processor.py
 from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
-from doc2train.core.llm_client import process_media_directly
 
 class VideoProcessor(BaseProcessor):
     """Custom video processor using direct LLM analysis"""
@@ -16,6 +15,7 @@ class VideoProcessor(BaseProcessor):
         self.processor_name = "VideoProcessor"
 
     def extract_content_impl(self, file_path: str):
+        from doc2train.core.llm_client import process_media_directly
         """Extract content from video using LLM"""
         # Option 1: Process directly with LLM
         if self.config.get('use_direct_processing', True):

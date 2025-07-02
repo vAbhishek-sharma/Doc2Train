@@ -1,6 +1,8 @@
 from typing import Any, Dict, Optional
 from doc2train.core.registries.plugin_registry import PluginRegistry
 import ipdb
+from doc2train.core.plugin_managers.llm_plugin_manager import LLMPluginManager
+
 class LLMRegistry(PluginRegistry):
     def __init__(self):
         super().__init__()
@@ -87,6 +89,13 @@ def register_llm_plugin(name: str, llm_cls, config: dict = None):
 def get_llm_plugin(name: str):
     return _LLM_REGISTRY.get(name)
 
+def get_llm_plugin_class(name: str):
+    """Get just the LLM plugin class, handling both dict and class formats."""
+    result = _LLM_REGISTRY.get(name)
+    if isinstance(result, dict) and 'class' in result:
+        return result['class']
+    return result
+
 def get_llm_plugin_config(name: str):
     # Helper to get config for instantiation
     return _LLM_REGISTRY._provider_configs.get(name, {})
@@ -97,6 +106,9 @@ def get_available_providers():
 def list_llm_plugins():
     return list(_LLM_REGISTRY.all().keys())
 
-
-
-
+def get_llm_client(config):
+    provider = config.get("provider", "openai")
+    plugin_cls = get_llm_plugin_class(provider)
+    if not plugin_cls:
+        raise ValueError(f"No LLM plugin found for provider: {provider}")
+    return plugin_cls(config)

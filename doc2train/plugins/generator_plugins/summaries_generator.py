@@ -12,6 +12,11 @@ class SummariesGenerator(BaseGenerator):
       "summaries": ["summary string 1", "summary string 2", ...]
     }
     """
+    name = 'summaries'
+    priority = 10
+    description = None
+    version = "1.0.0"
+    author = "Doc2Train Team"
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config, gen_type="summaries")
         self.schema = """

@@ -4,7 +4,6 @@ from doc2train.core.registries.generator_registry import get_generator
 from typing import Dict, List, Any, Optional
 import random
 from doc2train.core.extractor import chunk_text
-from doc2train.core.registries.generator_registry import get_generator
 import ipdb
 from typing import Any, Dict, List, Optional
 
@@ -14,48 +13,42 @@ def generate_data(
     config: Dict[str, Any]
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Chunk input, route to plugins, merge results.
+    Route to plugins for processing.
 
     Parameters:
       - text: the raw text to process
       - images: Optional list of vision inputs
       - config: global configuration dict, expected keys:
           • 'mode': 'extract', 'generate', or 'full'
-          • 'text': {'generators': List[str]}
-          • 'media': {'generators': List[str]}
+          • 'text_generators': List[str]
+          • 'media_generators': List[str]
           • 'custom_prompts': {generator_name: prompt_template}
     """
     # Determine which generators to run based on mode
     if config.get('mode') in ['generate', 'full']:
-        gen_types = config.get('text', {}).get('generators', [])
+        gen_types = config.get('text_generators', [])
     else:
-        gen_types = config.get('media', {}).get('generators', [])
+        gen_types = config.get('media_generators', [])
 
     custom_prompts = config.get('custom_prompts', {})
     results: Dict[str, List[Dict[str, Any]]] = {t: [] for t in gen_types}
-
-    # Break the text into chunks
-    chunks = chunk_text(text, config=config)
 
     for gen_type in gen_types:
         gen_cls = get_generator(gen_type)
         if not gen_cls:
             print(f"⚠️ No generator plugin registered for type: {gen_type}")
             continue
-
         plugin = gen_cls(config)
         prompt = custom_prompts.get(gen_type)
 
-        for chunk in chunks:
-            # Each plugin.generate returns List[Dict] or dict
-            items = plugin.generate(chunk, images=images, prompt_template=prompt)
-            if isinstance(items, dict):
-                results[gen_type].append(items)
-            else:
-                results[gen_type].extend(items or [])
+        # Let the plugin handle chunking internally
+        items = plugin.generate(text, images=images, prompt_template=prompt)
+        if isinstance(items, dict):
+            results[gen_type].append(items)
+        else:
+            results[gen_type].extend(items or [])
 
     return results
-
 
 # -------------------
 # Helper functions

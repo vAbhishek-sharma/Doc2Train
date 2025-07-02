@@ -5,22 +5,24 @@ from doc2train.core.registries.plugin_registry import PluginRegistry
 class GeneratorRegistry(PluginRegistry):
     def __init__(self):
         super().__init__()
-        self._type_map = {}
 
     def register(self, name: str, gen_cls):
         super().register(name, gen_cls)
-        for t in getattr(gen_cls, "types_supported", []):
-            # Only keep the highest-priority class for each type
-            existing = self._type_map.get(t)
-            new_priority = getattr(gen_cls, "priority", 10)
-            if existing:
-                old_priority = getattr(existing, "priority", 10)
-                if new_priority > old_priority:
-                    continue  # skip lower priority
-            self._type_map[t] = gen_cls
 
-    def get_by_type(self, gen_type):
-        return self._type_map.get(gen_type)
+    def get_plugin_metadata(self, name: str):
+        cls = self.get(name)
+        if cls:
+            return {
+                "name": getattr(cls, "name", name),
+                "priority": getattr(cls, "priority", 10),
+                "description": getattr(cls, "description", ""),
+                "version": getattr(cls, "version", ""),
+                "author": getattr(cls, "author", ""),
+            }
+        return {}
+
+    def get(self, name):
+        return super().get(name)
 
 # Singleton instance
 _GENERATOR_REGISTRY = GeneratorRegistry()
@@ -28,8 +30,12 @@ _GENERATOR_REGISTRY = GeneratorRegistry()
 def register_generator(name: str, gen_cls):
     _GENERATOR_REGISTRY.register(name, gen_cls)
 
-def get_generator(gen_type: str):
-    return _GENERATOR_REGISTRY.get_by_type(gen_type)
+def get_generator(name: str):
+    # Check if this is coming from plugin manager (dict format)
+    result = _GENERATOR_REGISTRY.get(name)
+    if isinstance(result, dict) and 'class' in result:
+        return result['class']
+    return result
 
 def list_all_generators():
     return _GENERATOR_REGISTRY.all()
