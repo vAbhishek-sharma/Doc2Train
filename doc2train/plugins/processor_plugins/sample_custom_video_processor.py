@@ -36,4 +36,4 @@ class VideoProcessor(BaseProcessor):
             )
             analyses.append(frame_analysis)
 
-        return "\n\n".join(analyses), []
+        return {'text': "\n\n".join(analyses), 'videos':[]}

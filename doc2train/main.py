@@ -184,9 +184,14 @@ def main():
         progress_display.set_show_progress(config.get('show_progress', True))
 
         results = route_command(config, supported_files)
-        if not results.get("success") and results.get("error"):
-            error = results.get("error")
-            print(f"\n❌ Error: {error} ")
+        if not results.get("success"):
+            print(f"\n❌ Error encountered during processing: {results.get('error')}")
+            if config.get('verbose', False):
+                print(f"\n📄 Traceback:\n{results.get('traceback', 'No traceback available')}")
+            if 'errors' in results:
+                for err in results['errors']:
+                    print(f"\n🚩 File: {err.get('file')}\nError: {err.get('error')}")
+
         #  Check if processing was auto-stopped
         if results.get('auto_stopped', False):
             print(f"\n⏸️  Processing auto-stopped: {results.get('stop_reason', 'Unknown reason')}")

@@ -4,9 +4,9 @@ import json
 import io
 
 class CSVFormatter(BaseFormatter):
-    format_name = "csv"
+    name = "csv"
     description = "CSV (flat table) formatter"
-    format_name = 10
+    priority ='10'
 
     def format_conversations(self, conversations):
         return self._dict_list_to_csv(self._flatten_conversations(conversations))

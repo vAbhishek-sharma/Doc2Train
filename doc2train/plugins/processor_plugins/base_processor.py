@@ -56,7 +56,7 @@ class BaseProcessor(ABC):
         """
         pass
 
-    def extract_content(self, file_path: str, use_cache: bool = True) -> Tuple[str, List[Dict]]:
+    def extract_content(self, file_path: str, use_cache: bool = True) -> Dict[str, Any]:
         """
         Main content extraction method with full pipeline
 
@@ -65,7 +65,7 @@ class BaseProcessor(ABC):
             use_cache: Whether to use cached results
 
         Returns:
-            Tuple of (text_content, list_of_images)
+            Dict with keys: text, images, audio, video, ...
         """
         file_name = Path(file_path).name
         start_time = time.time()
@@ -83,18 +83,19 @@ class BaseProcessor(ABC):
                 cached_result = self._load_from_cache(file_path)
                 if cached_result:
                     processing_time = time.time() - start_time
-                    self._update_stats(True, len(cached_result['text']), len(cached_result['images']), processing_time)
-                    complete_file_processing(file_name, len(cached_result['text']),
-                                           len(cached_result['images']), processing_time, True, self.processor_name)
-                    return cached_result['text'], cached_result['images']
+                    text = cached_result.get("text", "")
+                    images = cached_result.get("images", [])
+                    self._update_stats(True, len(text), len(images), processing_time)
+                    complete_file_processing(file_name, len(text), len(images), processing_time, True, self.processor_name)
+                    return cached_result
 
-            # Extract content using implementation
-            text, images = self.extract_content_impl(file_path)
+            # Extract content using implementation (now returns dict)
+            modalities = self.extract_content_impl(file_path)
             # Post-processing
-            text = self._apply_text_filters(text)
-            images = self._apply_image_filters(images)
-            # Validate extraction quality
-            if not self._validate_extraction_quality(text, images):
+            modalities["text"] = self._apply_text_filters(modalities.get("text", ""))
+            modalities["images"] = self._apply_image_filters(modalities.get("images", []))
+            # Validate extraction quality (use text/images for validation)
+            if not self._validate_extraction_quality(modalities.get("text", ""), modalities.get("images", [])):
                 if not self.config.get('allow_low_quality', False):
                     raise ValueError("Content quality below threshold")
 
@@ -102,15 +103,22 @@ class BaseProcessor(ABC):
 
             # Cache results
             if use_cache and self.config.get('use_cache', True):
-                self._save_to_cache(file_path, text, images, processing_time)
+                self._save_to_cache(file_path, modalities, processing_time)
 
             # Update statistics
-            self._update_stats(True, len(text), len(images), processing_time)
+            self._update_stats(True, len(modalities.get("text", "")), len(modalities.get("images", [])), processing_time)
 
             # Update progress
-            complete_file_processing(file_name, len(text), len(images), processing_time, True, self.processor_name)
+            complete_file_processing(
+                file_name,
+                len(modalities.get("text", "")),
+                len(modalities.get("images", [])),
+                processing_time,
+                True,
+                self.processor_name
+            )
 
-            return text, images
+            return modalities
 
         except Exception as e:
             processing_time = time.time() - start_time
@@ -123,7 +131,8 @@ class BaseProcessor(ABC):
                 raise
 
             complete_file_processing(file_name, 0, 0, processing_time, False, self.processor_name)
-            return "", []
+            # Return an empty modalities dict on failure
+            return {"text": "", "images": [], "audio": None, "video": None}
 
     def get_file_info(self, file_path: str) -> Dict[str, Any]:
         """
@@ -344,9 +353,9 @@ class BaseProcessor(ABC):
         """Load cached extraction results"""
         return self.cache_manager.load_from_cache(file_path, self.config)
 
-    def _save_to_cache(self, file_path: str, text: str, images: List[Dict], processing_time: float):
+    def _save_to_cache(self, file_path: str, modalities: dict, processing_time: float):
         """Save extraction results to cache"""
-        self.cache_manager.save_to_cache(file_path, text, images, self.config, processing_time)
+        self.cache_manager.save_to_cache(file_path, modalities['text'], modalities['images'], self.config, processing_time)
 
     def _is_cached(self, file_path: str) -> bool:
         """Check if file has cached results"""

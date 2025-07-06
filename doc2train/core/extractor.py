@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
 from doc2train.config.settings import *
-
+import ipdb
 # Import plugin registry for processors
 from doc2train.core.registries.processor_registry import get_processor_for_file, get_supported_extensions_dict
 
@@ -54,16 +54,16 @@ def extract_content(file_path: str, use_cache: bool = True, config: dict = None)
         processor = get_processor_for_file(file_path, config=config)
     except Exception as e:
         raise ValueError(f"No processor found for {file_path}: {e}")
-
     # Extract content (every processor exposes extract(file_path))
-    text, images = processor.extract(file_path)
+    modalities = processor.extract(file_path)
 
     # Cache results
     if USE_CACHE:
-        _save_to_cache(file_path, text, images)
+        _save_to_cache(file_path, modalities)
 
-    print(f"✅ Extracted from {Path(file_path).name}: {len(text)} chars, {len(images)} images")
-    return text, images
+    print(f"✅ Extracted from {Path(file_path).name}: {len(modalities['text'])} chars, {len(modalities['images'])} images")
+
+    return modalities
 
 # ------------------------
 # CACHING UTILS
@@ -93,13 +93,13 @@ def _load_from_cache(file_path: str) -> Optional[Dict]:
                 print(f"Cache read error: {e}")
     return None
 
-def _save_to_cache(file_path: str, text: str, images: List[Dict]):
+def _save_to_cache(file_path: str, modalities: dict, extracted_at: Optional[str|int]):
     """Save extraction results to cache"""
     cache_path = _get_cache_path(file_path)
     cache_data = {
         'file_path': file_path,
-        'text': text,
-        'images': images,
+        'text': modalities['text'],
+        'images': modalities['images'],
         'extracted_at': os.path.getctime(cache_path) if os.path.exists(cache_path) else None
     }
     try:

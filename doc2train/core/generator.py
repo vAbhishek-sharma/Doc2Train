@@ -13,42 +13,16 @@ def generate_data(
     config: Dict[str, Any]
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Route to plugins for processing.
-
-    Parameters:
-      - text: the raw text to process
-      - images: Optional list of vision inputs
-      - config: global configuration dict, expected keys:
-          • 'mode': 'extract', 'generate', or 'full'
-          • 'text_generators': List[str]
-          • 'media_generators': List[str]
-          • 'custom_prompts': {generator_name: prompt_template}
+    Route to plugins for processing based on mode: 'extract', 'generate', or 'full'.
     """
-    # Determine which generators to run based on mode
-    if config.get('mode') in ['generate', 'full']:
-        gen_types = config.get('text_generators', [])
+    mode = config.get('mode')
+    if mode == 'full':
+        return _full_data_generation_mode(text, images, config)
+    elif mode == 'generate':
+        return _generate_data_generation_mode(text, images, config)
     else:
-        gen_types = config.get('media_generators', [])
+        return _media_only_data_generation_mode(text, images, config)
 
-    custom_prompts = config.get('custom_prompts', {})
-    results: Dict[str, List[Dict[str, Any]]] = {t: [] for t in gen_types}
-
-    for gen_type in gen_types:
-        gen_cls = get_generator(gen_type)
-        if not gen_cls:
-            print(f"⚠️ No generator plugin registered for type: {gen_type}")
-            continue
-        plugin = gen_cls(config)
-        prompt = custom_prompts.get(gen_type)
-
-        # Let the plugin handle chunking internally
-        items = plugin.generate(text, images=images, prompt_template=prompt)
-        if isinstance(items, dict):
-            results[gen_type].append(items)
-        else:
-            results[gen_type].extend(items or [])
-
-    return results
 
 # -------------------
 # Helper functions
@@ -94,3 +68,99 @@ def get_data_stats(data: List[Dict]) -> Dict[str, Any]:
     count = len(data)
     avg_len = sum(len(str(d)) for d in data) / count if count else 0
     return {"count": count, "avg_length": avg_len}
+
+
+
+#  Generators mode handlers
+
+# -------------------
+# Mode handlers
+# -------------------
+
+def _full_data_generation_mode(
+    text: str,
+    images: Optional[List[Any]],
+    config: Dict[str, Any]
+) -> Dict[str, List[Dict[str, Any]]]:
+    # Generate both text and media data
+    text_results = _text_data_generation(text, images, config)
+    media_results = _media_data_generation(text, images, config)
+    # Merge dictionaries
+    results = {**text_results, **media_results}
+    return results
+
+
+def _media_only_data_generation_mode(
+    text: str,
+    images: Optional[List[Any]],
+    config: Dict[str, Any]
+) -> Dict[str, List[Dict[str, Any]]]:
+    # Generate only media data
+    return _media_data_generation(text, images, config)
+
+
+def _generate_data_generation_mode(
+    text: str,
+    images: Optional[List[Any]],
+    config: Dict[str, Any]
+) -> Dict[str, List[Dict[str, Any]]]:
+    # Generate only text data
+    return _text_data_generation(text, images, config)
+
+
+# -------------------
+# Internal generators
+# -------------------
+
+def _text_data_generation(
+    text: str,
+    images: Optional[List[Any]],
+    config: Dict[str, Any]
+) -> Dict[str, List[Dict[str, Any]]]:
+    gen_types = config.get('text_generators', [])
+    custom_prompts = config.get('custom_prompts', {})
+    results: Dict[str, List[Dict[str, Any]]] = {t: [] for t in gen_types}
+
+    for gen_type in gen_types:
+        gen_cls = get_generator(gen_type)
+        if not gen_cls:
+            print(f"⚠️ No generator plugin registered for type: {gen_type}")
+            continue
+        plugin = gen_cls(config)
+        prompt = custom_prompts.get(gen_type)
+
+        items = plugin.generate(text, images=images, prompt_template=prompt)
+        if isinstance(items, dict):
+            results[gen_type].append(items)
+        else:
+            results[gen_type].extend(items or [])
+
+    return results
+
+
+def _media_data_generation(
+    text: str,
+    images: Optional[List[Any]],
+    config: Dict[str, Any]
+) -> Dict[str, List[Dict[str, Any]]]:
+    gen_types = config.get('media_generators', [])
+    custom_prompts = config.get('custom_prompts', {})
+    results: Dict[str, List[Dict[str, Any]]] = {t: [] for t in gen_types}
+
+    for gen_type in gen_types:
+        gen_cls = get_generator(gen_type)
+        if not gen_cls:
+            print(f"⚠️ No generator plugin registered for type: {gen_type}")
+            continue
+        plugin = gen_cls(config)
+        prompt = custom_prompts.get(gen_type)
+
+        items = plugin.generate(text, images=images, prompt_template=prompt)
+        if isinstance(items, dict):
+            results[gen_type].append(items)
+        else:
+            results[gen_type].extend(items or [])
+
+    return results
+
+

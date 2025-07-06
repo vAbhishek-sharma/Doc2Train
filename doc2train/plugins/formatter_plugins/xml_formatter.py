@@ -3,9 +3,9 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom
 
 class XMLFormatter(BaseFormatter):
-    format_name = "xml"
+    name = "xml"
     description = "XML formatter for structured data"
-    format_name = 10
+    priority = 10
 
     def format_conversations(self, conversations):
         root = ET.Element("conversations", count=str(len(conversations)))

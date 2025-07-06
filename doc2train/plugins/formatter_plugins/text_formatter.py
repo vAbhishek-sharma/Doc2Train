@@ -1,9 +1,9 @@
 from doc2train.plugins.formatter_plugins.base_formatters import BaseFormatter
 
 class TextFormatter(BaseFormatter):
-    format_name = "txt"
+    name = "txt"
     description = "Human-readable plain text formatter"
-    format_name = 10
+    priority = 10
 
     def format_conversations(self, conversations):
         output = ["CONVERSATION TRAINING DATA", "=" * 50, f"Total conversations: {len(conversations)}", ""]

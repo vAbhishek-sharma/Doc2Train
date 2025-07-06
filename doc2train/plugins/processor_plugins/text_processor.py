@@ -46,7 +46,7 @@ class TextProcessor(BaseProcessor):
             if self.config.get('verbose'):
                 print(f"✅ Extracted {len(text)} characters from {Path(file_path).name}")
 
-            return text, []
+            return {"text": text, "images": []}
 
         except Exception as e:
             raise Exception(f"Error processing text file {file_path}: {e}")

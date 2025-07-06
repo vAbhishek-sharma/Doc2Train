@@ -1,9 +1,9 @@
 from doc2train.plugins.formatter_plugins.base_formatters import BaseFormatter
 
 class MarkdownFormatter(BaseFormatter):
-    format_name = "markdown"
+    name = "markdown"
     description = "Markdown formatter for documentation-style output"
-    format_name = 10
+    priority = 10
 
     def format_conversations(self, conversations):
         output = [ "# Conversation Training Data", "", f"**Total conversations:** {len(conversations)}", ""]

@@ -8,8 +8,10 @@ import json
 import threading
 import time
 from pathlib import Path
+import traceback
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from doc2train.core.formatters import smart_format_data
 from doc2train.core.registries.formatter_registry import get_formatter
 from doc2train.core.registries.generator_registry import get_generator
 from doc2train.core.writers import OutputManager
@@ -75,13 +77,13 @@ class ProcessingPipeline(BaseProcessor):
             )
         self._setup_pipeline()
 
-    def _should_auto_stop(self) -> Tuple[bool, str]:
-        """Check if processing should auto-stop"""
+    def _should_auto_stop(self):
+        consecutive_failures = self.stats.get('consecutive_failures', 0)
+        max_allowed_failures = self.config.get('auto_stop_on_consecutive_failures', 3)
 
-        # Check consecutive failures
-        max_consecutive = self.config.get('auto_stop_on_consecutive_failures', 3)
-        if max_consecutive and self.stats['consecutive_failures'] >= max_consecutive:
-            return True, f"Too many consecutive failures ({self.stats['consecutive_failures']})"
+        if consecutive_failures >= max_allowed_failures:
+            return True, f"{consecutive_failures} consecutive failures reached."
+
 
         # Check time limit
         time_limit_minutes = self.config.get('auto_stop_after_time')
@@ -95,7 +97,7 @@ class ProcessingPipeline(BaseProcessor):
         if file_limit and self.stats['files_successful'] >= file_limit:
             return True, f"File limit reached ({self.stats['files_successful']} files)"
 
-        return False, ""
+        return False, None
 
     def _setup_pipeline(self):
         # Validate LLM providers for generation modes
@@ -170,9 +172,11 @@ class ProcessingPipeline(BaseProcessor):
             return {
                 'success': False,
                 'error': str(e),
+                'traceback': traceback.format_exc(),
                 'files_processed': self.stats['files_total'],
                 'successful': self.stats['files_successful'],
-                'failed': self.stats['files_failed']
+                'failed': self.stats['files_failed'],
+                'errors': self.stats['errors']
             }
 
     def _process_extraction_only(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -266,9 +270,6 @@ class ProcessingPipeline(BaseProcessor):
         else:
             raise ValueError(f"Unknown resume mode: {mode!r}")
 
-    def _process_media_directly(self, file_paths:List[str], config: Dict[str, Any])->Dict[str,Any]:
-        pass
-
     def _process_files_parallel(self, file_paths: List[str], process_func) -> Dict[str, Any]:
         """Process files in parallel using ThreadPoolExecutor and write one combined summary."""
         max_workers = min(self.config.get('threads', 4), len(file_paths))
@@ -332,12 +333,10 @@ class ProcessingPipeline(BaseProcessor):
                         break
 
                 except Exception as e:
-                    self._handle_file_error(file_path, str(e))
+                    error_trace = traceback.format_exc()
+                    self._handle_file_error(file_path, f"{str(e)}\n{error_trace}")
                     update_progress_display()
-                    if self.stats['should_stop']:
-                        print(f"\n⏸️  Auto-stopping: {self.stats['stop_reason']}")
-                        self._save_checkpoint(file_paths, file_path)
-                        break
+                    break
         # 7. One-time summary dump
         self.output_manager.save_all_results(all_results, 'batch_summary')
         return all_results
@@ -373,7 +372,7 @@ class ProcessingPipeline(BaseProcessor):
                     all_results['files_failed'] += 1
                     all_results['errors'].append({
                         'file': file_path,
-                        'error': result.get('error')
+                        'error': result.get('error') or result.get('generation_error')
                     })
                 all_results['total_text_chars'] += result.get('text_chars', 0)
                 all_results['total_images'] += result.get('image_count', 0)
@@ -385,8 +384,15 @@ class ProcessingPipeline(BaseProcessor):
 
                 update_progress_display()
 
+                # Auto-stop checkpointing
+                if self.stats['should_stop']:
+                    print(f"\n⏸️  Auto-stopping: {self.stats['stop_reason']}")
+                    self._save_checkpoint(file_paths, file_path)
+                    break
+
             except Exception as e:
-                self._handle_file_error(file_path, str(e))
+                error_trace = traceback.format_exc()
+                self._handle_file_error(file_path, f"{str(e)}\n{error_trace}")
                 update_progress_display()
 
         # 5. One-time summary dump
@@ -412,7 +418,7 @@ class ProcessingPipeline(BaseProcessor):
             # Get appropriate processor
             processor = get_processor_for_file(file_path, self.config)
             # Extract content
-            text, images = processor.extract_content(file_path, self.config.get('use_cache', True))
+            extracted_data = processor.extract_content(file_path, self.config.get('use_cache', True))
 
             processing_time = time.time() - start_time
 
@@ -420,10 +426,14 @@ class ProcessingPipeline(BaseProcessor):
                 'success': True,
                 'file_path': file_path,
                 'file_name': file_name,
-                'text': text,
-                'images': images,
-                'text_chars': len(text),
-                'image_count': len(images),
+                'modalities': {   # <- Add this!
+                    'text': extracted_data['text'],
+                    'images': extracted_data['images'],
+                    'audio': [],
+                    'video': [],
+                },
+                'text_chars': len(extracted_data['text']),
+                'image_count': len(extracted_data['images']),
                 'processing_time': processing_time,
                 'processor': processor.processor_name
             }
@@ -443,6 +453,7 @@ class ProcessingPipeline(BaseProcessor):
     def _extract_and_generate_single_file(self, file_path: str) -> Dict[str, Any]:
         """Extract content and generate training data for a single file, but only keep metadata in memory."""
         # 1. Extract
+
         extract_result = self._extract_single_file(file_path)
         if not extract_result.get('success'):
             return extract_result
@@ -453,8 +464,8 @@ class ProcessingPipeline(BaseProcessor):
         extract_result['generated_path']        = None
 
         try:
-            text   = extract_result['text']
-            images = extract_result['images']
+            text   = extract_result['modalities']['text']
+            images = extract_result['modalities']['images']
 
             if not text.strip():
                 # nothing to generate
@@ -462,7 +473,7 @@ class ProcessingPipeline(BaseProcessor):
             generated = generate_data(text,images,self.config)
             # 3. Persist the full output to disk
             for fmt_name in self.config.get('text_formatters', []):
-                fmt_cls = get_formatter(fmt_name)
+                fmt_cls = smart_format_data( generated, fmt_name,fmt_name, self.config)
                 if not fmt_cls:
                     continue
                 formatter = fmt_cls(self.config)
@@ -483,16 +494,18 @@ class ProcessingPipeline(BaseProcessor):
             return extract_result
 
         except Exception as e:
-            extract_result['generation_error']      = str(e)
+            extract_result['generation_error'] = str(e)
+            extract_result['generation_traceback'] = traceback.format_exc()
             extract_result['generation_successful'] = False
+            extract_result['success'] = False  # explicitly mark failure
+            extract_result['file_name'] = Path(file_path).name
             return extract_result
 
     def _process_media_directly(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
         """Process media files (images) end-to-end through vision LLM + generators + formatters."""
         print("🖼️ Direct-to-LLM mode: Processing media files…")
-        media_cfg = self.config['dataset']['media']
-        gens = media_cfg.get('generators', [])
-        fmts = media_cfg.get('formatters', [])
+        gens = self.config.get('media_generators', [])
+        fmts = self.config.get('media_formatters', [])
 
         # bind our per-file work
         def work(path: str) -> Dict[str, Any]:
@@ -588,15 +601,14 @@ class ProcessingPipeline(BaseProcessor):
             self.stats['consecutive_failures'] += 1  #  Increment consecutive failures
             self.stats['errors'].append({
                 'file': result.get('file_name', 'unknown'),
-                'error': result.get('error', 'Unknown error')
+                'error': result.get('generation_error', 'Unknown error')
             })
 
             #  Check for quota exceeded error
-            error_msg = result.get('error', '').lower()
+            error_msg = result.get('generation_error', '').lower()
             if ('quota' in error_msg or '429' in error_msg) and self.config.get('auto_stop_on_quota_exceeded', True):
                 self.stats['should_stop'] = True
                 self.stats['stop_reason'] = "API quota exceeded"
-
         #  Check if we should auto-stop
         should_stop, reason = self._should_auto_stop()
         if should_stop:

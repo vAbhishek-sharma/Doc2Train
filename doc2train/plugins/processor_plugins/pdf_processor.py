@@ -59,7 +59,7 @@ class PDFProcessor(BaseProcessor):
                 text = self._apply_text_filters(text)
                 images = self._apply_image_filters(images)
 
-                return text, images
+                return {"text": text, "images": images}
             else:
                 # Fallback to basic extraction
                 return self._basic_pdf_extraction(file_path)

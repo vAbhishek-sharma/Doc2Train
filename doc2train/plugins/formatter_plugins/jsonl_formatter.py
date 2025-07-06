@@ -2,9 +2,9 @@ from doc2train.plugins.formatter_plugins.base_formatters import BaseFormatter
 import json
 
 class JSONLFormatter(BaseFormatter):
-    format_name = "jsonl"
+    name = "jsonl"
     description = "JSON Lines formatter"
-    format_name = 10
+    priority = 10
 
     def format_conversations(self, conversations):
         return '\n'.join(json.dumps(conv, ensure_ascii=False) for conv in conversations)

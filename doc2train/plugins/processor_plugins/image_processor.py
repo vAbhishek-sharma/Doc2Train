@@ -43,7 +43,7 @@ class ImageProcessor(BaseProcessor):
             if image_area < min_size:
                 if self.config.get('verbose'):
                     print(f"⏭️ Skipping small image: {image.width}x{image.height} ({image_area} px)")
-                return "", []
+                return {"text":"", "images": []}
 
             # Perform OCR if enabled
             ocr_text = ""
@@ -63,13 +63,13 @@ class ImageProcessor(BaseProcessor):
             if quality_score < quality_threshold:
                 if self.config.get('verbose'):
                     print(f"⏭️ Skipping low-quality image: {quality_score:.2f} < {quality_threshold}")
-                return "", []
+                return {"text":"", "images": []}
 
             # Check for single color if enabled
             if self.config.get('skip_single_color_images', False) and self._is_single_color(image):
                 if self.config.get('verbose'):
                     print(f"⏭️ Skipping single-color image")
-                return "", []
+                return {"text":"", "images": []}
 
             image_info = {
                 'path': file_path,
@@ -87,7 +87,7 @@ class ImageProcessor(BaseProcessor):
             if self.config.get('verbose'):
                 print(f"✅ Processed image: {image.width}x{image.height}, {len(ocr_text)} OCR chars")
 
-            return ocr_text, [image_info]
+            return { 'text': 'ocr_text','image': [image_info]}
 
         except Exception as e:
             raise Exception(f"Error processing image {file_path}: {e}")

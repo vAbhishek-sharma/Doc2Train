@@ -6,7 +6,7 @@ Unified output formatters for different data types and formats
 """
 
 from typing import Any, Optional
-
+import ipdb
 def format_data(data, data_type, format_name, config=None):
     """
     Format data using a specific formatter plugin (by name).
@@ -28,7 +28,6 @@ def smart_format_data(data, data_type, output_file: Optional[str] = None, config
     """
     from pathlib import Path
     from doc2train.core.registries.formatter_registry import get_formatter
-
     format_name = None
 
     # 1. Config override

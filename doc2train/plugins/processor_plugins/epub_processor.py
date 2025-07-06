@@ -128,7 +128,7 @@ class EPUBProcessor(BaseProcessor):
             if self.config.get('verbose'):
                 print(f"✅ Extracted {len(text_content)} characters and {len(images)} images")
 
-            return text_content.strip(), images
+            return {"text": text_content.strip(), "images": images}
 
         except Exception as e:
             raise Exception(f"Error processing EPUB {file_path}: {e}")
