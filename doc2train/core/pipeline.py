@@ -4,6 +4,7 @@ Complete processing pipeline for Doc2Train v2.0 Enhanced
 Orchestrates the entire document processing workflow with parallel execution
 """
 
+from datetime import datetime
 import json
 import threading
 import time
@@ -14,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_compl
 from doc2train.core.formatters import smart_format_data
 from doc2train.core.registries.formatter_registry import get_formatter
 from doc2train.core.registries.generator_registry import get_generator
-from doc2train.core.writers import OutputManager
+from doc2train.core.writers import OutputManager, OutputWriter
 from doc2train.utils.resource_manager import resource_manager
 import os
 import ipdb
@@ -453,40 +454,46 @@ class ProcessingPipeline(BaseProcessor):
     def _extract_and_generate_single_file(self, file_path: str) -> Dict[str, Any]:
         """Extract content and generate training data for a single file, but only keep metadata in memory."""
         # 1. Extract
-
         extract_result = self._extract_single_file(file_path)
         if not extract_result.get('success'):
             return extract_result
 
         # Prepare default generation metadata
         extract_result['generation_successful'] = False
-        extract_result['generated_count']       = 0
-        extract_result['generated_path']        = None
+        extract_result['generated_count'] = 0
+        extract_result['generated_path'] = None
 
         try:
-            text   = extract_result['modalities']['text']
+            text = extract_result['modalities']['text']
             images = extract_result['modalities']['images']
 
             if not text.strip():
                 # nothing to generate
                 return extract_result
-            generated = generate_data(text,images,self.config)
-            # 3. Persist the full output to disk
-            for fmt_name in self.config.get('text_formatters', []):
-                fmt_cls = smart_format_data( generated, fmt_name,fmt_name, self.config)
-                if not fmt_cls:
-                    continue
-                formatter = fmt_cls(self.config)
-                # assume write() method handles file naming
-                formatter.write(generated, batch_idx=1)
-                # if formatter exposes last output path, record it
-                if hasattr(formatter, 'last_output_path'):
-                    extract_result['generated_paths'].append(formatter.last_output_path)
 
+            generated = generate_data(text, images, self.config)
+            extract_result['generated_paths'] = []
+
+            # Use batch datetime for output subfolders and mega files
+            batch_dt = datetime.now().strftime("%d%m%y%H%M")
+            formats = self.config.get("text_formatters", ["jsonl"])
+            # Decide on the right key for generators:
+            generators_key = "text_generators"  # or "media_generators" if in media mode
+
+            output_writer = OutputWriter(self.config)
+            all_paths = output_writer.save_per_file_and_mega_outputs(
+                file_path=file_path,
+                generated=generated,
+                formats=formats,
+                batch_dt=batch_dt,
+                config=self.config,
+                generators_key=generators_key
+            )
+            extract_result["generated_paths"].extend(all_paths)
 
             # 4. Update only the metadata in your result
             extract_result['generation_successful'] = True
-            extract_result['generated_count']       = len(generated)
+            extract_result['generated_count'] = len(generated)
 
             # 5. (Optional) drop the big blob if it snuck in
             extract_result.pop('generated_data', None)

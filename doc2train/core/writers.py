@@ -78,6 +78,7 @@ class OutputWriter:
         Expects: {file_path: {data_type: items}}
         """
         output_dir = Path(self.config.get('output_dir', './outputs'))
+
         output_dir.mkdir(parents=True, exist_ok=True)
         for file_path, data_dict in file_results.items():
             file_stem = Path(file_path).stem
@@ -107,6 +108,72 @@ class OutputWriter:
             smart_save_items(items, output_file, data_type, self.config)
             with open(output_file, "w", encoding="utf-8") as f:
                 f.write(formatted)
+
+    def save_per_file_and_mega_outputs(
+        self,
+        file_path,
+        generated,
+        formats,
+        batch_dt,
+        config,
+        generators_key="text_generators"
+    ):
+        """
+        Save both per-file and mega-file outputs for each generator and format.
+        Args:
+            file_path: input file path
+            generated: dict with {generator: [items]}
+            formats: list of output formats (e.g., ["jsonl", "csv"])
+            batch_dt: datetime string for batch (e.g., "0707251804")
+            config: current config (dict)
+            generators_key: config key to use for generators ("text_generators" or "media_generators")
+        Returns:
+            List of all per-file output paths created.
+        """
+        file_stem = Path(file_path).stem
+        output_dir_base = Path(config.get('output_dir', './outputs')) / "data" / batch_dt
+        output_dir_base.mkdir(parents=True, exist_ok=True)
+
+        generators = config.get(generators_key, [])
+
+        all_paths = []
+
+        from doc2train.core.registries.formatter_registry import get_formatter
+
+        for fmt in formats:
+            for gen in generators:
+                section_data = generated.get(gen)
+                if not section_data:
+                    continue
+                ext = "." + fmt if not fmt.startswith('.') else fmt
+                # Per-file output
+                file_dir = output_dir_base / file_stem
+                file_dir.mkdir(parents=True, exist_ok=True)
+                per_file_path = file_dir / f"{file_stem}_{gen}{ext}"
+                # Format
+                formatter_cls = get_formatter(fmt)
+                formatter = formatter_cls(config)
+                format_method = getattr(formatter, f"format_{gen}", None)
+                if format_method:
+                    formatted = format_method(section_data)
+                else:
+                    formatted = formatter.format(section_data, gen)
+                with open(per_file_path, "w", encoding="utf-8") as f:
+                    f.write(formatted)
+                all_paths.append(str(per_file_path))
+                # Mega-file append
+                mega_path = output_dir_base / f"final_{gen}{ext}"
+                if fmt == "jsonl":
+                    with open(mega_path, "a", encoding="utf-8") as f:
+                        for item in section_data:
+                            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+                elif fmt == "csv":
+                    # TODO: For CSV, ensure correct header handling for appends
+                    with open(mega_path, "a", encoding="utf-8") as f:
+                        f.write(formatted)
+                # Add logic for XML or other formats as needed
+
+        return all_paths
 
 class OutputManager:
     """
