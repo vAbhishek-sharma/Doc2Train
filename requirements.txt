@@ -1,76 +1,55 @@
-# requirements.txt - Updated for modular Doc2Train
-
-# Core dependencies
-pandas>=2.0.0
-numpy>=1.24.0
+# === Core (for pipeline + CLI only) ===
+pyyaml>=6.0.1       # For YAML config files
+click>=8.1.0        # For CLI (future)
+rich>=13.7.0        # For nice CLI output (future)
+requests>=2.31.0
+openai>=1.88.00
 python-dotenv>=1.0.0
-asyncio-throttle>=1.0.0
+psutil>=5.9.0
+ipdb
 
-# Document processing
+# === Optional/Plugin-ecosystem ===
+
+# PDF, EPUB, Image, Video, OCR plugins (uncomment if using related plugins)
 PyPDF2>=3.0.0
-PyMuPDF>=1.23.0  # fitz for advanced PDF processing
+PyMuPDF>=1.23.0
 ebooklib>=0.18
-beautifulsoup4>=4.12.0
-webvtt-py>=0.4.6
-
-# Image processing and OCR
-opencv-python>=4.8.0
-pytesseract>=0.3.10
 Pillow>=10.0.0
 pdf2image>=1.16.0
+beautifulsoup4>=4.12.0
+ebooklib
+webvtt-py>=0.4.6
+# opencv-python>=4.8.0
+pytesseract>=0.3.10
 
-# AI/ML models
-openai>=1.0.0
-transformers>=4.35.0
-torch>=2.0.0
-torchvision>=0.15.0
 
-# Vision models (optional but recommended)
-# Uncomment if you want image captioning
-# accelerate>=0.24.0
-# bitsandbytes>=0.41.0
 
-# Web framework (for future API)
-fastapi>=0.104.0
-uvicorn>=0.24.0
-pydantic>=2.5.0
+# LLMs, ML, Embeddings, HuggingFace integration
+# transformers>=4.35.0
+# torch>=2.0.0
+# torchvision>=0.15.0
+# datasets>=2.14.0
+# sentence-transformers>=2.2.0
+# scikit-learn>=1.3.0
+# nltk>=3.8.1
 
-# Data processing and storage
-datasets>=2.14.0  # For HuggingFace dataset integration
-pyarrow>=14.0.0   # For parquet support
-sqlalchemy>=2.0.0 # For database support
-
-# Async and parallel processing
-aiofiles>=23.0.0
-aiohttp>=3.9.0
-
-# Quality control and metrics
-scikit-learn>=1.3.0
-nltk>=3.8.1
-sentence-transformers>=2.2.0  # For embedding similarity
+# Async, Web, DB, Misc
+# asyncio-throttle>=1.0.0
+# fastapi>=0.104.0
+# uvicorn>=0.24.0
+# pydantic>=2.5.0
+# pyarrow>=14.0.0
+# sqlalchemy>=2.0.0
+# aiofiles>=23.0.0
+# aiohttp>=3.9.0
 
 # Utilities
-tqdm>=4.66.0
-rich>=13.7.0      # For beautiful console output
-click>=8.1.0      # For CLI improvements
-pyyaml>=6.0.1     # For config files
+# tqdm>=4.66.0
+# psutil>=5.9.0
 
-# Development and testing
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-black>=23.0.0
-isort>=5.12.0
-mypy>=1.7.0
-
-# System monitoring and process management
-psutil>=5.9.0     # Required for system monitoring and process management
-
-
-# Optional: For advanced document processing
-# python-docx>=1.1.0
-# python-pptx>=0.6.23
-# openpyxl>=3.1.0
-
-# Optional: For advanced ML features
-# faiss-cpu>=1.7.4  # For vector similarity search
-# chromadb>=0.4.0   # For vector database
+# === Dev/test only ===
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+# black>=23.0.0
+# isort>=5.12.0
+# mypy>=1.7.0

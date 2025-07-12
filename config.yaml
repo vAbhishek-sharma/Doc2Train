@@ -1,24 +1,25 @@
-# Doc2Train v2.0 Enhanced - Unified Configuration
+# Doc2Train Enhanced - Unified Configuration
 # Edit this file to customize all aspects of document processing
 
 # Basic Settings
-mode: "extract-only"  # extract-only, generate, full, resume, analyze
-input_path: ""  # Will be set by command line
+mode: "generate"  # extract-only, generate, full, resume, analyze, direct_to_llm
+input_path: "input"  # Will be set by command line if not provided
 output_dir: "output"
 output_format: ["jsonl", "json"] # jsonl, json, csv, txt
 
 # Processing Settings
 processing:
   use_async: true  # Use async LLM calls for faster processing
-  threads: 4
-  max_workers: 4
+  threads: 1
+  max_workers: 1
   batch_size: 10
   timeout: 300  # seconds
   max_file_size: "100MB"
   use_cache: true
-  save_per_file: false  # Save each file immediately after processing
-  # NEW: Auto-stop features
-  auto_stop_on_quota_exceeded: false  # Stop when API quota is hit
+  save_per_file: true  # Save each file immediately after processing
+
+  #  Auto-stop features
+  auto_stop_on_quota_exceeded: false  # Stop when LLM API quota is hit
   auto_stop_on_consecutive_failures: 3  # Stop after N consecutive failures
   auto_stop_after_time: null  # Stop after X minutes (null = no limit)
   auto_stop_after_files: null  # Stop after N files (null = no limit)
@@ -41,7 +42,7 @@ quality:
 features:
   extract_images: true
   use_ocr: true
-  include_vision: false  # Process images with vision LLMs
+  include_vision: true  # Process images with vision LLMs
   smart_pdf_analysis: true  # Use smart PDF analysis
 
 # LLM Settings
@@ -50,21 +51,75 @@ llm:
   provider_capabilities: true
   list_providers: true
   list_plugins: true
-  provider: "openai"  # openai, deepseek, local
-  model: ""  # Leave empty for auto-selection
+  use_async: true
+  provider: "openrouter"  # openai, deepseek, local
+  model: "openai/gpt-4o-mini"  # Leave empty for auto-selection
   fallback_provider: "deepseek"
-  max_concurrent_calls: 5  # For async processing
+  max_concurrent_calls: 5  # For async processing multiple calls at a time f
+  # To handle
+  max_retries: 3
+  retry_backoff: 1
+  retry_prompt: |
+    Your last output wasn't valid JSON. Please re-emit only exactly valid JSON without anyother data as it will be parsed :
+    {schema}
 
-  # API Keys (can also be set via environment variables)
-  api_keys:
-    openai: ""  # Set OPENAI_API_KEY in .env instead
-    deepseek: ""  # Set DEEPSEEK_API_KEY in .env instead
+    Previous output was:
+    {previous}
 
-# Generation Settings
-generation:
-  types: ["conversations", "qa_pairs"]  # conversations, embeddings, qa_pairs, summaries
-  chunk_size: 4000
-  overlap: 200
+
+  # YOu can set API_KEY in .env instead
+  llm_providers:
+    anthropic:
+      api_key: "sk-ant-xxxx"
+      base_url: "https://api.anthropic.com/v1"
+      default_model: "claude-3-5-sonnet-20241022"
+      timeout: 30
+      temperature: 0.7
+    openai:
+      api_key: "sk-oa-xxxx"
+      base_url: "https://api.openai.com/v1"
+      default_model: "gpt-4o"
+      temperature: 0.5
+      max_tokens: 4096
+    deepseek:
+      api_key: "sk-ds-xxxx"
+      base_url: "https://api.deepseek.com/v1"
+      default_model: "deepseek-chat"
+      temperature: 0.4
+    openrouter:
+      api_key: "sk-ds-xxxx"
+      base_url: "https://api.deepseek.com/v1"
+      default_model: "deepseek-chat"
+      temperature: 0.4
+
+
+
+dataset:
+  # Text-based dataset pieces
+  text:
+    generators:
+      - conversations
+      - qa_pairs
+      # - embeddings
+      - summaries
+    chunk_size: 4000
+    overlap: 200
+    formatters:
+      - jsonl
+      - csv
+
+  # Image-based dataset pieces
+  media:
+    generators:
+      ###### to implement these generators
+      # - image_descriptions
+      # - image_qa
+      - qa_pairs
+
+    # no chunking here—each image is one “chunk”
+    formatters:
+      - jsonl
+
 
 # Custom Prompts (override defaults)
 prompts:
@@ -73,23 +128,33 @@ prompts:
   # Custom prompt templates (optional - will use style defaults if not specified)
   custom:
     conversations: |
-      Based on this content, create a natural multi-turn conversation between a user and an AI assistant.
-      Make it educational and engaging. Include 3-4 exchanges (user question -> AI response).
+      Based on this content, create a natural multi-turn conversation between a user and an AI assistant. Make it educational and engaging. Include 3-4 exchanges (user question → AI response).
 
       Content:
       {chunk}
 
-      Format your response as JSON:
-      {{"conversations": [
-          {{"messages": [
-              {{"role": "user", "content": "user question"}},
-              {{"role": "assistant", "content": "AI response"}}
-          ]}},
-          {{"messages": [
-              {{"role": "user", "content": "follow-up question"}},
-              {{"role": "assistant", "content": "AI response"}}
-          ]}}
-      ]}}
+      Here's the exact JSON structure I need (shown in a code block for clarity).
+      *Do NOT* output the triple-backticks or the word “json” — return only the object below:
+
+      ```json
+      {
+        "conversations": [
+          {
+            "messages": [
+              { "role": "user",      "content": "First user question" },
+              { "role": "assistant", "content": "First AI answer" }
+            ]
+          },
+          {
+            "messages": [
+              { "role": "user",      "content": "Follow-up question" },
+              { "role": "assistant", "content": "Follow-up answer" }
+            ]
+          }
+        ]
+      }
+
+
 
     qa_pairs: |
       Create specific questions that can be answered from this content.
@@ -130,7 +195,7 @@ prompts:
 debug:
   verbose: false
   show_progress: true
-  show_images: false
+  save_images: false # extract and save images from epub pdf etc
   test_mode: false
   dry_run: false
   benchmark: false
@@ -138,7 +203,7 @@ debug:
 
 # Advanced Settings
 advanced:
-  plugin_dir: ""
+  llm_plugin_dir: ""
   resume_from: ""
   clear_cache_after: true
 

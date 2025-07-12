@@ -1,6 +1,6 @@
 #!/bin/bash
-# setup.sh - Complete setup script for Doc2Train v2.0
-# Run this script to automatically install and configure Doc2Train v2.0
+# setup.sh - Complete setup script for Doc2Train
+# Run this script to automatically install and configure Doc2Train
 
 set -e  # Exit on any error
 
@@ -192,7 +192,7 @@ setup_venv() {
 choose_installation_type() {
     print_header "Choosing Installation Type"
 
-    echo -e "${CYAN}Choose your Doc2Train v2.0 installation:${NC}"
+    echo -e "${CYAN}Choose your Doc2Train installation:${NC}"
     echo
     echo -e "${GREEN}1) 📦 Basic (Recommended)${NC} - ~20MB download"
     echo "   ✅ PDF, EPUB, TXT, image processing"
@@ -363,7 +363,7 @@ setup_config() {
         print_status "Creating .env configuration file..."
 
         cat > .env << 'EOF'
-# Doc2Train v2.0 Configuration
+# Doc2Train Configuration
 # Edit this file with your actual API keys and settings
 
 # API Keys (Required for LLM processing)
@@ -502,7 +502,7 @@ test_installation() {
 
 # Function to display usage instructions
 show_usage() {
-    print_header "Doc2Train v2.0 - Ready to Use!"
+    print_header "Doc2Train - Ready to Use!"
 
     echo -e "${GREEN}🎉 Installation completed successfully!${NC}"
 
@@ -592,7 +592,7 @@ check_project_structure() {
     if [ ! -f "main.py" ] || [ ! -d "core" ] || [ ! -d "processors" ]; then
         print_error "Doc2Train project files not found in current directory!"
         echo
-        echo "Please make sure you have all the Doc2Train v2.0 files in the current directory:"
+        echo "Please make sure you have all the Doc2Train files in the current directory:"
         echo "- main.py"
         echo "- core/ (directory with core modules)"
         echo "- processors/ (directory with processors)"
@@ -609,8 +609,8 @@ main() {
     # Set up signal handlers
     trap cleanup SIGINT SIGTERM
 
-    print_header "Doc2Train v2.0 - Smart Setup Script"
-    echo -e "${BLUE}Automatically install and configure Doc2Train v2.0${NC}"
+    print_header "Doc2Train - Smart Setup Script"
+    echo -e "${BLUE}Automatically install and configure Doc2Train${NC}"
     echo -e "${PURPLE}Now with smart dependency management - no more huge downloads!${NC}"
     echo
 
@@ -649,7 +649,7 @@ main() {
     fi
 
     echo
-    print_status "Starting Doc2Train v2.0 setup with $INSTALL_TYPE installation..."
+    print_status "Starting Doc2Train setup with $INSTALL_TYPE installation..."
 
     # Step 1: Install system dependencies
     if [ "$INSTALL_SYSTEM_DEPS" = true ]; then
@@ -692,7 +692,7 @@ main() {
     # Step 7: Show usage instructions
     show_usage
 
-    print_success "Doc2Train v2.0 setup completed!"
+    print_success "Doc2Train setup completed!"
 
     # Show quick start based on installation type
     echo

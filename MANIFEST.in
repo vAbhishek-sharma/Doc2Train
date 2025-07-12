@@ -1,6 +1,6 @@
 
 
-# NEW: MANIFEST.in - Include additional files in package
+#  MANIFEST.in - Include additional files in package
 """
 Include additional files when building the package
 """

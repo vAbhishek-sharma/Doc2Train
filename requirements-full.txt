@@ -1,4 +1,4 @@
-# requirements-full.txt - Complete Doc2Train v2.0 with all features
+# requirements-full.txt - Complete Doc2Train with all features
 # Use this only if you need local ML models and advanced image processing
 
 # Core dependencies

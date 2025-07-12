@@ -1,4 +1,4 @@
-# Modern Python packaging configuration for Doc2Train v2.0
+# Modern Python packaging configuration for Doc2Train
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -55,7 +55,7 @@ dev = [
 ]
 
 [project.scripts]
-doc2train = "doc2train.cli:main"
+doc2train = "doc2train.main:main"
 doc2train-api = "doc2train.api:start_server"
 doc2train-web = "doc2train.web:start_ui"
 

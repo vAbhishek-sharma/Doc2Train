@@ -1,5 +1,5 @@
 #!/bin/bash
-# uninstall.sh - Clean uninstaller for Doc2Train v2.0
+# uninstall.sh - Clean uninstaller for Doc2Train
 
 set -e
 
@@ -135,7 +135,7 @@ clean_cache() {
 show_space_freed() {
     print_header "Cleanup Summary"
 
-    echo -e "${GREEN}✅ Doc2Train v2.0 has been uninstalled${NC}"
+    echo -e "${GREEN}✅ Doc2Train has been uninstalled${NC}"
     echo
     echo "What was removed:"
     echo "  • Virtual environment (if existed)"
@@ -160,12 +160,12 @@ show_space_freed() {
 
 # Main uninstall function
 main() {
-    print_header "Doc2Train v2.0 - Uninstaller"
-    echo -e "${BLUE}This will remove Doc2Train v2.0 and free up disk space${NC}"
+    print_header "Doc2Train - Uninstaller"
+    echo -e "${BLUE}This will remove Doc2Train and free up disk space${NC}"
     echo
 
     # Ask for confirmation
-    read -p "Are you sure you want to uninstall Doc2Train v2.0? (y/N): " -n 1 -r
+    read -p "Are you sure you want to uninstall Doc2Train? (y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         print_warning "Uninstall cancelled"
