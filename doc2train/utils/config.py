@@ -262,6 +262,9 @@ def create_default_env_file():
 # API Keys (Required for LLM processing)
 OPENAI_API_KEY=your-openai-api-key-here
 DEEPSEEK_API_KEY=your-deepseek-api-key-here
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+GOOGLE_API_KEY=your-google-api-key-here
+MISTRAL=your-mistral-api-key-here
 
 # Default Settings
 DEFAULT_PROVIDER=openai
