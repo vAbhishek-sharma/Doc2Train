@@ -12,7 +12,7 @@ from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 from doc2train.utils.pdf_utils.analyzer import SmartPDFAnalyzer
 from doc2train.utils.pdf_utils.common import  perform_ocr_on_page
 from doc2train.utils.pdf_utils.extraction import extract_page_images_safe
-import ipdb
+
 
 class PDFProcessor(BaseProcessor):
     """PDF processor with smart analysis and full BaseProcessor functionality"""
@@ -210,6 +210,58 @@ class PDFProcessor(BaseProcessor):
             traceback.print_exc()
             return 10.0  # Default estimate
 
+    def _extract_page_images_with_base(self, page, page_num: int, doc, file_path: str, images_subdir: str) -> List[Dict]:
+        """
+        Save images to images_subdir, returning metadata dicts with file paths (never raw bytes).
+        """
+        from pathlib import Path
+        images = []
+        try:
+            page_images = page.get_images(full=True)
+
+            for img_index, img in enumerate(page_images):
+                try:
+                    if len(img) < 7:
+                        continue
+                    xref = img[0]
+                    try:
+                        pix = fitz.Pixmap(doc, xref)
+                        if pix.width * pix.height < 1000:
+                            del pix
+                            continue
+                        if pix.n - pix.alpha < 4:
+                            img_data = pix.tobytes("png")
+                            try:
+                                img_rect = page.get_image_bbox(img)
+                                bbox = [img_rect.x0, img_rect.y0, img_rect.x1, img_rect.y1]
+                            except:
+                                bbox = None
+
+                            base_name = f"page{page_num}_img{img_index+1}"
+                            extra = {
+                                'page_num': page_num,
+                                'image_index': img_index,
+                                'format': 'png',
+                                'dimensions': (pix.width, pix.height),
+                                'bbox': bbox,
+                                'xref': xref
+                            }
+                            img_info = self._save_and_record_image(
+                                img_data,
+                                output_dir=images_subdir,
+                                base_name=base_name,
+                                extra=extra
+                            )
+                            images.append(img_info)
+                        del pix
+                    except Exception:
+                        continue
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return images
+
 
 # Simple extraction function for backward compatibility
 def extract_pdf_content(file_path: str, skip_analysis=False) -> Tuple[str, List[Dict]]:
@@ -217,54 +269,3 @@ def extract_pdf_content(file_path: str, skip_analysis=False) -> Tuple[str, List[
     processor = PDFProcessor(config={'use_smart_analysis': not skip_analysis})
     return processor.extract_content_impl(file_path)
 
-def _extract_page_images_with_base(self, page, page_num: int, doc, file_path: str, images_subdir: str) -> List[Dict]:
-    """
-    Save images to images_subdir, returning metadata dicts with file paths (never raw bytes).
-    """
-    from pathlib import Path
-    images = []
-    try:
-        page_images = page.get_images(full=True)
-
-        for img_index, img in enumerate(page_images):
-            try:
-                if len(img) < 7:
-                    continue
-                xref = img[0]
-                try:
-                    pix = fitz.Pixmap(doc, xref)
-                    if pix.width * pix.height < 1000:
-                        del pix
-                        continue
-                    if pix.n - pix.alpha < 4:
-                        img_data = pix.tobytes("png")
-                        try:
-                            img_rect = page.get_image_bbox(img)
-                            bbox = [img_rect.x0, img_rect.y0, img_rect.x1, img_rect.y1]
-                        except:
-                            bbox = None
-
-                        base_name = f"page{page_num}_img{img_index+1}"
-                        extra = {
-                            'page_num': page_num,
-                            'image_index': img_index,
-                            'format': 'png',
-                            'dimensions': (pix.width, pix.height),
-                            'bbox': bbox,
-                            'xref': xref
-                        }
-                        img_info = self._save_and_record_image(
-                            img_data,
-                            output_dir=images_subdir,
-                            base_name=base_name,
-                            extra=extra
-                        )
-                        images.append(img_info)
-                    del pix
-                except Exception:
-                    continue
-            except Exception:
-                continue
-    except Exception:
-        pass
-    return images

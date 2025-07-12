@@ -8,7 +8,7 @@ from datetime import datetime
 import time
 from typing import Dict, List, Any
 from pathlib import Path
-import ipdb
+
 
 from doc2train.core.llm_client import test_provider
 from doc2train.core.pipeline import ProcessingPipeline, PerformanceBenchmark, create_processing_pipeline

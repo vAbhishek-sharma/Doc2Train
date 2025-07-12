@@ -8,7 +8,7 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 from typing import Tuple, List, Dict
 from pathlib import Path
-import ipdb
+
 from doc2train.utils.image_save import save_image_data
 from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 class EPUBProcessor(BaseProcessor):
@@ -99,7 +99,7 @@ class EPUBProcessor(BaseProcessor):
                             if width * height >= min_size:
                                 ocr_text = ""
                                 if self.config.get('use_ocr', True):
-                                    ocr_text = self._ocr_image_data(image_data)
+                                    ocr_text = self._ocr_image_data(item)
 
                                 # Compose a DRY base name
                                 base_name = f"chapter{current_chapter}_{item.get_name()}"
@@ -144,18 +144,44 @@ class EPUBProcessor(BaseProcessor):
         except:
             return None
 
-    def _ocr_image_data(self, image_data: bytes) -> str:
-        """Perform OCR on image data"""
+    def _ocr_image_data(self, item: dict) -> str:
+        """Perform OCR on image data.
+        If include_vision=True, try the LLM vision API first; otherwise (or on failure) fall back to Tesseract."""
+        from doc2train.core.llm_client import call_vision_llm
+        image_data = item.get_content()
+        # 1) LLM-based OCR
+        if self.config.get('include_vision', False):
+            try:
+                return call_vision_llm(
+                    prompt=(
+                        "Extract and return only the raw text content from the provided image. "
+                        "Do not include any commentary, labels, formatting instructions, or metadata—just the text."
+                    ),
+                    images=[item],
+                    config=self.config
+                ).strip()
+            except Exception as e:
+                if self.config.get('verbose'):
+                    print(f"⚠️  Vision OCR failed, falling back to Tesseract: {e}")
+
+        # 2) Fallback: local Tesseract OCR (if configured)
+        if not self.config.get('use_ocr', True):
+            return ""
+
         try:
             import pytesseract
             from PIL import Image
             import io
 
-            image = Image.open(io.BytesIO(image_data))
-            ocr_text = pytesseract.image_to_string(image)
-            return ocr_text.strip()
+            img = Image.open(io.BytesIO(image_data))
+            if img.mode not in ('RGB', 'L'):
+                img = img.convert('RGB')
+            text = pytesseract.image_to_string(img)
+            return text.strip()
 
         except ImportError:
+            if self.config.get('verbose'):
+                print("⚠️  pytesseract not installed.")
             return ""
         except Exception as e:
             if self.config.get('verbose'):

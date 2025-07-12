@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional
 from doc2train.plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
 from doc2train.utils.plugin_loader import load_plugins_from_dirs
 import doc2train
-import ipdb
+
 class LLMPluginManager:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import mimetypes
 from datetime import datetime
-import ipdb
+
 from doc2train.core.registries.processor_registry import _PROCESSOR_REGISTRY
 
 def get_supported_files(directory: str, recursive: bool = True, max_files: Optional[int] = None) -> List[str]:

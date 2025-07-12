@@ -16,7 +16,7 @@ from doc2train.utils.progress import start_file_processing, complete_file_proces
 from doc2train.utils.cache import CacheManager
 from doc2train.utils.validation import validate_extraction_quality
 from doc2train.utils.common import save_image_data
-import ipdb
+
 class BaseProcessor(ABC):
     """
     Base class for all document processors with complete functionality
@@ -88,7 +88,6 @@ class BaseProcessor(ABC):
                     self._update_stats(True, len(text), len(images), processing_time)
                     complete_file_processing(file_name, len(text), len(images), processing_time, True, self.processor_name)
                     return cached_result
-
             # Extract content using implementation (now returns dict)
             modalities = self.extract_content_impl(file_path)
             # Post-processing

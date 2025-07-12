@@ -24,19 +24,43 @@ def get_ocr_config(config: Dict, quality_level: str = "medium") -> str:
     }
     return config.get('ocr_config') or quality_configs.get(quality_level, quality_configs["medium"])
 
-def perform_ocr_on_image_data(img_data: bytes, config: Optional[Dict] = None) -> str:
+def perform_ocr_on_image_data(img_data: bytes, image:list,config: Optional[Dict] = None) -> str:
+    """Extract text from raw image bytes.
+    If include_vision=True, try LLM vision first; otherwise (or on failure) use Tesseract."""
+    from doc2train.core.llm_client import call_vision_llm
     config = config or {}
+
+    # 1) LLM-based vision OCR
+    if config.get('include_vision', False):
+        try:
+            return call_vision_llm(
+                prompt=(
+                    "Extract and return only the raw text content from the provided image. "
+                    "Do not include any commentary, labels, formatting instructions, or metadata—just the text."
+                ),
+                images=[image],
+                config=config
+            ).strip()
+        except Exception as e:
+            if config.get('verbose'):
+                print(f"⚠️  Vision OCR failed: {e}")
+            # fall through to Tesseract
+
+    # 2) Fallback to Tesseract if allowed
     if not config.get('use_ocr', True):
         return ""
+
     try:
         import pytesseract
         pil_image = Image.open(io.BytesIO(img_data))
         if pil_image.mode not in ('RGB', 'L'):
             pil_image = pil_image.convert('RGB')
+        # reuse existing OCR config helper
         ocr_quality = config.get('ocr_quality', 'medium')
         ocr_config = get_ocr_config(config, ocr_quality)
-        ocr_text = pytesseract.image_to_string(pil_image, config=ocr_config)
-        return ocr_text.strip()
+        text = pytesseract.image_to_string(pil_image, config=ocr_config)
+        return text.strip()
+
     except ImportError:
         if config.get('verbose'):
             print("⚠️  pytesseract not available for OCR")
@@ -60,7 +84,7 @@ def perform_ocr_on_extracted_images(images: List[Dict], config: Optional[Dict] =
                     img_data = f.read()
             except:
                 img_data = None
-        updated_img['ocr_text'] = perform_ocr_on_image_data(img_data, config) if img_data else ""
+        updated_img['ocr_text'] = perform_ocr_on_image_data(img_data, img,config) if img_data else ""
         updated_images.append(updated_img)
     return updated_images
 
@@ -583,7 +607,7 @@ def extract_text_focused(file_path: str, config=None) -> Tuple[str, List[Dict]]:
                     print(f"   📝 OCR fallback for page {page_num + 1}")
                 pix = page.get_pixmap(matrix=fitz.Matrix(2,2))
                 img_data = pix.tobytes("png")
-                page_text = perform_ocr_on_image_data(img_data, config)
+                page_text = perform_ocr_on_image_data(img_data, pix,config)
             # Extract images
             page_images = []
             if config.get('extract_images', True):
@@ -620,7 +644,7 @@ def extract_image_focused(file_path: str, config=None) -> Tuple[str, List[Dict]]
         if not page_text.strip() and config.get('use_ocr', True):
             pix = page.get_pixmap(matrix=fitz.Matrix(2,2))
             img_data = pix.tobytes("png")
-            page_text = perform_ocr_on_image_data(img_data, config)
+            page_text = perform_ocr_on_image_data(img_data, pix,config)
         page_images = extract_page_images_safe(page, page_num + 1, doc, file_path, config.get('save_images', False))
         page_images = perform_ocr_on_extracted_images(page_images, config)
         images.extend(page_images)
@@ -650,7 +674,7 @@ def extract_with_heavy_ocr(file_path: str, config=None) -> Tuple[str, List[Dict]
             print(f"   📄 Heavy OCR on page {page_num + 1}")
         pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
         img_data = pix.tobytes("png")
-        page_ocr_text = perform_ocr_on_image_data(img_data, heavy_config)
+        page_ocr_text = perform_ocr_on_image_data(img_data, pix,heavy_config)
         page_images = extract_page_images_safe(page, page_num + 1, doc, file_path, config.get('save_images', False))
         page_images = perform_ocr_on_extracted_images(page_images, heavy_config)
         images.extend(page_images)
@@ -675,7 +699,7 @@ def extract_basic_content(file_path: str, config=None) -> Tuple[str, List[Dict]]
         if not page_text.strip() and config.get('use_ocr', True):
             pix = page.get_pixmap(matrix=fitz.Matrix(2,2))
             img_data = pix.tobytes("png")
-            page_text = perform_ocr_on_image_data(img_data, config)
+            page_text = perform_ocr_on_image_data(img_data, pix, config)
         page_images = []
         if config.get('extract_images', True):
             page_images = extract_page_images_safe(page, page_num + 1, doc, file_path, config.get('save_images', False))

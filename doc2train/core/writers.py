@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from doc2train.core.registries.writer_registry import get_writer
 from doc2train.core.formatters import format_data, smart_format_data
-import ipdb
+
 def save_items(
     items: List[Dict],
     output_file: Union[str, Path],
@@ -151,7 +151,8 @@ class OutputWriter:
                 file_dir.mkdir(parents=True, exist_ok=True)
                 per_file_path = file_dir / f"{file_stem}_{gen}{ext}"
                 # Format
-                formatter_cls = get_formatter(fmt)
+                formatter_info  = get_formatter(fmt)
+                formatter_cls = formatter_info['class']
                 formatter = formatter_cls(config)
                 format_method = getattr(formatter, f"format_{gen}", None)
                 if format_method:

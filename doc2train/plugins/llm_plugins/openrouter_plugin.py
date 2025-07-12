@@ -63,7 +63,7 @@ class OpenRouterPlugin(BaseLLMPlugin):
             content.append({
                 'type': 'image_url',
                 'image_url': {
-                    'url': f"data:image/{image_type};base64,{self._encode_image(img_data)}"
+                    'url': f"data:image/{image_type};base64,{self._encode_image(image_data=img_data)}"
                 }
             })
         content.append({'type': 'text', 'text': prompt})
@@ -126,7 +126,7 @@ class OpenRouterPlugin(BaseLLMPlugin):
             content.append({
                 'type': 'image_url',
                 'image_url': {
-                    'url': f"data:image/{image_type};base64,{BaseLLMPlugin._encode_image(img_data)}"
+                    'url': f"data:image/{image_type};base64,{BaseLLMPlugin._encode_image(image_data=img_data)}"
                 }
             })
         content.append({'type': 'text', 'text': prompt})
@@ -143,6 +143,8 @@ class OpenRouterPlugin(BaseLLMPlugin):
             'max_tokens': kwargs.get('max_tokens', 2000),
             'temperature': kwargs.get('temperature', 0.7)
         }
+
+
         resp = requests.post(f"{OpenRouterPlugin._get_base_url()}/chat/completions", headers=headers, json=payload)
         if resp.status_code != 200:
             raise RuntimeError(f"OpenRouter API error {resp.status_code}: {resp.text}")

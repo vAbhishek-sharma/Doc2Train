@@ -7,7 +7,7 @@ import os
 from PIL import Image
 from typing import Tuple, List, Dict
 from pathlib import Path
-import ipdb
+
 from doc2train.plugins.processor_plugins.base_processor import BaseProcessor
 
 class ImageProcessor(BaseProcessor):
@@ -25,69 +25,80 @@ class ImageProcessor(BaseProcessor):
 
     def extract_content_impl(self, file_path: str) -> Tuple[str, List[Dict]]:
         """
-        Extract text from image using OCR
+        Extract text from image using OCR (either vision-LLM or local Tesseract)
 
         Args:
             file_path: Path to image file
 
         Returns:
-            Tuple of (ocr_text, image_data_list)
+            Dict with keys "text" (the OCR result) and "images" (a list of info dicts)
         """
+        from doc2train.core.llm_client import call_vision_llm
         try:
             # Load image
             image = Image.open(file_path)
-            # Apply size filter
+            # Filter out very small images
             min_size = self.config.get('min_image_size', 1000)
-            image_area = image.width * image.height
-
-            if image_area < min_size:
+            area = image.width * image.height
+            if area < min_size:
                 if self.config.get('verbose'):
-                    print(f"⏭️ Skipping small image: {image.width}x{image.height} ({image_area} px)")
-                return {"text":"", "images": []}
+                    print(f"⏭️ Skipping small image: {image.width}x{image.height} ({area} px)")
+                return {"text": "", "images": []}
 
-            # Perform OCR if enabled
-            ocr_text = ""
-            if self.config.get('use_ocr', True):
-                ocr_text = self._perform_ocr(image)
-
-            # Read image data for potential vision LLM processing
-            # Add vision llm option to image_processor for specifc images. or images inside the pdf and epubs . Cheaper and better than just reliance on vision models
-            with open(file_path, 'rb') as f:
+            # Read raw bytes once (for vision LLM + quality check)
+            with open(file_path, "rb") as f:
                 image_data = f.read()
+
+            # 1) Try vision-LLM OCR if requested
+            ocr_text = ""
+            if self.config.get("include_vision", False):
+                ocr_text = call_vision_llm(
+                    prompt=(
+                        "Extract and return only the raw text content from the provided image. "
+                        "Do not include any commentary, labels, formatting instructions, or metadata—just the text."
+                    ),
+                    images=[file_path],
+                    config=self.config
+                ).strip()
+                if self.config.get("verbose"):
+                    print(f"🔮 Vision OCR succeeded: {len(ocr_text)} chars")
+
+            # 2) Fallback to your existing Tesseract OCR
+            if not ocr_text and self.config.get("use_ocr", True):
+                ocr_text = self._perform_ocr(image)
 
             # Assess image quality
             quality_score = self._assess_image_quality(image, image_data)
+            thresh = self.config.get("quality_threshold", 0.0)
+            if quality_score < thresh:
+                if self.config.get("verbose"):
+                    print(f"⏭️ Skipping low-quality image: {quality_score:.2f} < {thresh}")
+                return {"text": "", "images": []}
 
-            # Apply quality filter
-            quality_threshold = self.config.get('quality_threshold', 0.0)
-            if quality_score < quality_threshold:
-                if self.config.get('verbose'):
-                    print(f"⏭️ Skipping low-quality image: {quality_score:.2f} < {quality_threshold}")
-                return {"text":"", "images": []}
+            # Optionally skip single-color images
+            if self.config.get("skip_single_color_images", False) and self._is_single_color(image):
+                if self.config.get("verbose"):
+                    print("⏭️ Skipping single-color image")
+                return {"text": "", "images": []}
 
-            # Check for single color if enabled
-            if self.config.get('skip_single_color_images', False) and self._is_single_color(image):
-                if self.config.get('verbose'):
-                    print(f"⏭️ Skipping single-color image")
-                return {"text":"", "images": []}
-
+            # Gather metadata
             image_info = {
-                'path': file_path,
-                'file_path': file_path,
-                'ocr_text': ocr_text,
-                'context': f"Image file: {os.path.basename(file_path)}",
-                'dimensions': (image.width, image.height),
-                'format': image.format,
-                'mode': image.mode,
-                'size_bytes': len(image_data),
-                'quality_score': quality_score,
-                'is_single_color': self._is_single_color(image)
+                "path": file_path,
+                "file_path": file_path,
+                "ocr_text": ocr_text,
+                "context": f"Image file: {os.path.basename(file_path)}",
+                "dimensions": (image.width, image.height),
+                "format": image.format,
+                "mode": image.mode,
+                "size_bytes": len(image_data),
+                "quality_score": quality_score,
+                "is_single_color": self._is_single_color(image),
             }
 
-            if self.config.get('verbose'):
+            if self.config.get("verbose"):
                 print(f"✅ Processed image: {image.width}x{image.height}, {len(ocr_text)} OCR chars")
 
-            return { 'text': 'ocr_text','image': [image_info]}
+            return {"text": ocr_text, "images": [image_info]}
 
         except Exception as e:
             raise Exception(f"Error processing image {file_path}: {e}")

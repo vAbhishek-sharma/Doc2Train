@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 from doc2train.core.registries.plugin_registry import PluginRegistry
-import ipdb
+
 from doc2train.core.plugin_managers.llm_plugin_manager import LLMPluginManager
 
 class LLMRegistry(PluginRegistry):
@@ -112,3 +112,46 @@ def get_llm_client(config):
     if not plugin_cls:
         raise ValueError(f"No LLM plugin found for provider: {provider}")
     return plugin_cls(config)
+
+def get_vision_provider(
+    provider_name: Optional[str] = None,
+    model_name:    Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Pick a vision-capable LLM provider + model:
+      1. Filter to only providers where plugin_cls.supports_vision is True.
+      2. If provider_name is in that list, use it (and model_name if supported, else default).
+      3. Else if model_name is given, pick the first vision provider that supports it.
+      4. Else fall back to the first vision provider + its default model.
+    Returns: {"provider": str, "plugin_cls": class, "model": str}
+    """
+    # 1) only vision-capable names
+    vision_candidates = [
+        name
+        for name in get_available_providers()
+        if get_llm_plugin_class(name).supports_vision
+    ]
+    if not vision_candidates:
+        raise RuntimeError("No vision-capable providers registered")
+
+    # 2) explicit provider
+    if provider_name in vision_candidates:
+        cls = get_llm_plugin_class(provider_name)
+        supported = cls.supported_models()
+        chosen = model_name if (model_name in supported) else cls.get_default_model()
+        return {"provider": provider_name, "plugin_cls": cls, "model": chosen}
+
+    # 3) pick any provider that supports the requested model
+    if model_name:
+        for name in vision_candidates:
+            cls = get_llm_plugin_class(name)
+            if model_name in cls.supported_models():
+                return {"provider": name, "plugin_cls": cls, "model": model_name}
+
+    # 4) fallback to first vision provider + its default
+    fallback = vision_candidates[0]
+    cls = get_llm_plugin_class(fallback)
+    return {"provider": fallback, "plugin_cls": cls, "model": cls.get_default_model()}
+
+
+

@@ -28,7 +28,7 @@ from doc2train.cli.commands import  execute_direct_media_command, execute_list_p
 from doc2train.core.plugin_setup import set_plugins
 from doc2train.cli.commands import execute_list_providers_command, execute_info_command, route_command
 
-import ipdb
+
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -145,9 +145,7 @@ def main():
         # if not validate_input_and_files(config):
         #     return 1
 
-        if getattr(args, 'info', False):
-            execute_info_command(config)
-            return 0
+        execute_info_command(config)
         # Get supported files
         #TO UPDATE: To add support for files from plugin processor folder
         supported_files = get_supported_files(config.get('input_path'))

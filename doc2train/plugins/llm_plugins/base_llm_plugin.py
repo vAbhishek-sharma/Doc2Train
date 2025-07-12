@@ -118,8 +118,8 @@ class BaseLLMPlugin(LLMPluginMetadataMixin,ABC):
             'models': self.get_available_models(),
             'config_valid': self.validate_config()
         }
-
-    def _encode_image(self, image_data: Union[str, bytes]) -> str:
+    @staticmethod
+    def _encode_image(image_data: Union[str, bytes]) -> str:
         """
         Helper method to encode image data as base64
 

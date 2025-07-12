@@ -6,7 +6,7 @@ from doc2train.plugins.generator_plugins.base_generator import BaseGenerator
 
 class QAPairsGenerator(BaseGenerator):
     """
-    Generator plugin for question–answer pairs.
+    Generator plugin for question-answer pairs.
     """
     name = 'qa_pairs'
     priority = 10
@@ -29,14 +29,3 @@ class QAPairsGenerator(BaseGenerator):
         """Pull out the 'qa_pairs' array from the JSON."""
         return parsed_json.get("qa_pairs", [])
 
-    def generate(
-        self,
-        text: str,
-        images: Optional[List[Any]] = None,
-        prompt_template: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        If you ever need to handle images specially for QA, you can override here.
-        Otherwise just defer to BaseGenerator:
-        """
-        return super().generate(text, images=images, prompt_template=prompt_template)

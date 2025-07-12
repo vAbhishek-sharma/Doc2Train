@@ -6,7 +6,7 @@ Unified output formatters for different data types and formats
 """
 
 from typing import Any, Optional
-import ipdb
+
 def format_data(data, data_type, format_name, config=None):
     """
     Format data using a specific formatter plugin (by name).

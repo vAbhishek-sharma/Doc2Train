@@ -7,7 +7,7 @@ import yaml
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
-import ipdb
+
 class ConfigLoader:
     """Load and manage YAML configuration with environment variable support"""
 
@@ -195,6 +195,7 @@ class ConfigLoader:
 
     def get_processing_config(self) -> Dict[str, Any]:
         """Get flattened config for processing pipeline"""
+
         return {
             # Basic settings
 
@@ -236,14 +237,13 @@ class ConfigLoader:
             'llm_providers': self.get('llm.llm_providers'),
             'model': self.get('llm.model'),
             'max_concurrent_calls': self.get('llm.max_concurrent_calls'),
-
             #generators
             'text_generators':self.get('dataset.text.generators'),
-            'images_generators':self.get('dataset.media.formatters'),
+            'media_generators':self.get('dataset.media.generators'),
 
             #formatter
-            'text_formatters':self.get('dataset.text.generators'),
-            'text_formatters':self.get('dataset.media.formatters'),
+            'text_formatters':self.get('dataset.text.formatters'),
+            'media_formatters':self.get('dataset.media.formatters'),
 
 
             # Generation settings

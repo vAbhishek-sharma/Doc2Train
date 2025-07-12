@@ -23,7 +23,7 @@ from doc2train.core.registries.formatter_registry import _FORMATTER_REGISTRY
 from doc2train.core.registries.generator_registry import _GENERATOR_REGISTRY
 
 
-import ipdb
+
 def set_plugins(config: dict):
     # --- LLM plugins ---
     llm_mgr = LLMPluginManager(config)

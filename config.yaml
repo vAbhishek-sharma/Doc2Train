@@ -40,9 +40,9 @@ quality:
 
 # Features
 features:
-  extract_images: false
-  use_ocr: false
-  include_vision: false  # Process images with vision LLMs
+  extract_images: true
+  use_ocr: true
+  include_vision: true  # Process images with vision LLMs
   smart_pdf_analysis: true  # Use smart PDF analysis
 
 # LLM Settings
@@ -51,19 +51,21 @@ llm:
   provider_capabilities: true
   list_providers: true
   list_plugins: true
-  provider: "openai"  # openai, deepseek, local
-  model: ""  # Leave empty for auto-selection
+  use_async: true
+  provider: "openrouter"  # openai, deepseek, local
+  model: "openai/gpt-4o-mini"  # Leave empty for auto-selection
   fallback_provider: "deepseek"
   max_concurrent_calls: 5  # For async processing multiple calls at a time f
-  # To handle 
+  # To handle
   max_retries: 3
   retry_backoff: 1
   retry_prompt: |
-    Your last output wasn’t valid JSON. Please re-emit exactly valid JSON:
+    Your last output wasn't valid JSON. Please re-emit only exactly valid JSON without anyother data as it will be parsed :
     {schema}
 
     Previous output was:
     {previous}
+
 
   # YOu can set API_KEY in .env instead
   llm_providers:
@@ -84,7 +86,11 @@ llm:
       base_url: "https://api.deepseek.com/v1"
       default_model: "deepseek-chat"
       temperature: 0.4
-
+    openrouter:
+      api_key: "sk-ds-xxxx"
+      base_url: "https://api.deepseek.com/v1"
+      default_model: "deepseek-chat"
+      temperature: 0.4
 
 
 
@@ -94,7 +100,7 @@ dataset:
     generators:
       - conversations
       - qa_pairs
-      - embeddings
+      # - embeddings
       - summaries
     chunk_size: 4000
     overlap: 200
@@ -105,8 +111,11 @@ dataset:
   # Image-based dataset pieces
   media:
     generators:
-      - image_descriptions
-      - image_qa
+      ###### to implement these generators
+      # - image_descriptions
+      # - image_qa
+      - qa_pairs
+
     # no chunking here—each image is one “chunk”
     formatters:
       - jsonl
@@ -119,23 +128,33 @@ prompts:
   # Custom prompt templates (optional - will use style defaults if not specified)
   custom:
     conversations: |
-      Based on this content, create a natural multi-turn conversation between a user and an AI assistant.
-      Make it educational and engaging. Include 3-4 exchanges (user question -> AI response).
+      Based on this content, create a natural multi-turn conversation between a user and an AI assistant. Make it educational and engaging. Include 3-4 exchanges (user question → AI response).
 
       Content:
       {chunk}
 
-      Format your response as JSON:
-      {{"conversations": [
-          {{"messages": [
-              {{"role": "user", "content": "user question"}},
-              {{"role": "assistant", "content": "AI response"}}
-          ]}},
-          {{"messages": [
-              {{"role": "user", "content": "follow-up question"}},
-              {{"role": "assistant", "content": "AI response"}}
-          ]}}
-      ]}}
+      Here's the exact JSON structure I need (shown in a code block for clarity).
+      *Do NOT* output the triple-backticks or the word “json” — return only the object below:
+
+      ```json
+      {
+        "conversations": [
+          {
+            "messages": [
+              { "role": "user",      "content": "First user question" },
+              { "role": "assistant", "content": "First AI answer" }
+            ]
+          },
+          {
+            "messages": [
+              { "role": "user",      "content": "Follow-up question" },
+              { "role": "assistant", "content": "Follow-up answer" }
+            ]
+          }
+        ]
+      }
+
+
 
     qa_pairs: |
       Create specific questions that can be answered from this content.

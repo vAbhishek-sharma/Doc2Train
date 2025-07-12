@@ -12,13 +12,14 @@ from pathlib import Path
 import traceback
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from doc2train.core.extractor import extract_content
 from doc2train.core.formatters import smart_format_data
 from doc2train.core.registries.formatter_registry import get_formatter
 from doc2train.core.registries.generator_registry import get_generator
 from doc2train.core.writers import OutputManager, OutputWriter
 from doc2train.utils.resource_manager import resource_manager
 import os
-import ipdb
+
 
 from doc2train.core.registries.processor_registry import get_processor_for_file
 from doc2train.core.generator import generate_data
@@ -70,7 +71,7 @@ class ProcessingPipeline(BaseProcessor):
         }
         self.start_time = None  #  Track processing start time
         self.use_resource_limits = config.get("use_resource_limits", True)  # ADDED
-
+        self.batch_dt = datetime.now().strftime("%d%m%y%H%M")
         self.output_manager = OutputManager(config)
         if 'threads' not in self.config or not self.config['threads']:
             self.config['threads'] = resource_manager.get_optimal_workers(
@@ -140,6 +141,7 @@ class ProcessingPipeline(BaseProcessor):
             elif self.config['mode'] == 'resume':
                 results = self._process_resume(file_paths, self.config)
             elif self.config['mode'] == 'direct_to_llm':
+
                 results = self._process_media_directly(file_paths, self.config)
             else:
                 raise ValueError(f"Unknown processing mode: {self.config['mode']}")
@@ -344,6 +346,7 @@ class ProcessingPipeline(BaseProcessor):
 
     def _process_files_sequential(self, file_paths: List[str], process_func) -> Dict[str, Any]:
         """Process files one by one, then write one combined summary."""
+
         # 1. Initialize combined summary
         all_results: Dict[str, Any] = {
             'mode': self.config.get('mode'),
@@ -471,11 +474,11 @@ class ProcessingPipeline(BaseProcessor):
                 # nothing to generate
                 return extract_result
 
-            generated = generate_data(text, images, self.config)
+            generated = generate_data(text=text, images=images, audio=None, video=None ,config=self.config)
             extract_result['generated_paths'] = []
 
-            # Use batch datetime for output subfolders and mega files
-            batch_dt = datetime.now().strftime("%d%m%y%H%M")
+        # Use batch datetime for output subfolders and mega files
+
             formats = self.config.get("text_formatters", ["jsonl"])
             # Decide on the right key for generators:
             generators_key = "text_generators"  # or "media_generators" if in media mode
@@ -485,7 +488,7 @@ class ProcessingPipeline(BaseProcessor):
                 file_path=file_path,
                 generated=generated,
                 formats=formats,
-                batch_dt=batch_dt,
+                batch_dt=self.batch_dt,
                 config=self.config,
                 generators_key=generators_key
             )
@@ -508,94 +511,95 @@ class ProcessingPipeline(BaseProcessor):
             extract_result['file_name'] = Path(file_path).name
             return extract_result
 
-    def _process_media_directly(self, file_paths: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
-        """Process media files (images) end-to-end through vision LLM + generators + formatters."""
+    def _process_media_directly(
+        self,
+        file_paths: List[str],
+        config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Mode: direct_to_llm
+        1) Filters media_generators to only those that support vision.
+        2) Dispatches each file through the unified generate_data → save_per_file_and_mega_outputs flow.
+        """
         print("🖼️ Direct-to-LLM mode: Processing media files…")
-        gens = self.config.get('media_generators', [])
-        fmts = self.config.get('media_formatters', [])
 
-        # bind our per-file work
+        # 1) Filter out any generators that don't support vision
+
+        # 2) Build a short‐lived config override
+        cfg = dict(config)
+        cfg['media_generators']   = config.get('media_generators', [])
+        cfg['media_formatters']   = config.get('media_formatters', [])
+        cfg['use_cache']          = config.get('use_cache', True)
+
         def work(path: str) -> Dict[str, Any]:
-            return self._process_media_single_file(path, gens, fmts)
+            return self._process_media_single_file(path, cfg)
 
-        if self.config.get('threads', 1) > 1:
+        if cfg.get('threads', 1) > 1:
             return self._process_files_parallel(file_paths, work)
         else:
             return self._process_files_sequential(file_paths, work)
 
+
     def _process_media_single_file(
         self,
-        media_path: str,
-        generators: List[str],
-        formatters: List[str]
+        file_path: str,
+        config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        1) Send the image to the vision LLM
-        2) Run each generator plugin on the LLM’s raw output
-        3) Format the combined generator results
-        4) Write to disk and return a tiny metadata dict
+        1) extract_content → (text, images)
+        2) call generate_data(text="", images=images, …)
+        3) persist via OutputWriter.save_per_file_and_mega_outputs
         """
-        result: Dict[str, Any] = {'success': False, 'media_path': media_path}
+        result: Dict[str, Any] = {
+            'success': False,
+            'file_path': file_path
+        }
         try:
-            # ——— 1) Vision LLM call ———
-            raw = process_media_directly(
-                media_path,
-                prompt=self.config.get('media_prompt')
+            # # ——— 1) Extract streams ———
+            # _, images = extract_content(
+            #     file_path,
+            #     use_cache=config.get('use_cache', True)
+            # )
+
+            # ——— 2) Unified generation ———
+
+
+            generated = generate_data(
+                text="",
+                images=[file_path],
+                audio=None,
+                video=None,
+                config=config
             )
 
-            # try to parse JSON if the model returned structured JSON
-            try:
-                raw_data = json.loads(raw)
-            except Exception:
-                raw_data = raw
+            # ——— 3) Persist outputs ———
+            batch_dt = datetime.utcnow().strftime("%d%m%y%H%M")
+            writer = OutputWriter(config)
 
-            # ——— 2) Generators ———
-            gen_outputs: Dict[str, Any] = {}
-            for gen in generators:
-                gen_cls = get_generator(gen)
-                if not gen_cls:
-                    print(f"⚠️  No generator plugin for: {gen}")
-                    continue
-                plugin = gen_cls(self.config)
-                # assume each plugin.generate takes (input, type, prompt_template)
-                gen_outputs[gen] = plugin.generate(
-                    raw_data,
-                    gen,
-                    prompt_template=self.config.get('prompts', {}).get('custom', {}).get(gen)
-                )
-
-            # ——— 3) Formatters ———
-            formatted = gen_outputs
-            for fmt in formatters:
-                fmt_cls = get_formatter(fmt)
-                if not fmt_cls:
-                    print(f"⚠️  No formatter plugin for: {fmt}")
-                    continue
-                formatted = fmt_cls(self.config).format(formatted, data_type=fmt)
-
-            # ——— 4) Persist ———
-            out_dir = Path(self.config['output_dir']) / "media_results"
-            out_dir.mkdir(parents=True, exist_ok=True)
-            ext = formatters[0]
-            out_file = out_dir / f"{Path(media_path).stem}_media.{ext}"
-
-            if isinstance(formatted, str):
-                out_file.write_text(formatted, encoding='utf-8')
-            else:
-                out_file.write_text(json.dumps(formatted, ensure_ascii=False, indent=2), encoding='utf-8')
+            out_paths = writer.save_per_file_and_mega_outputs(
+                file_path=file_path,
+                generated=generated,
+                formats=config.get('media_formatters', []),
+                batch_dt=batch_dt,
+                config=config,
+                generators_key='media_generators'
+            )
 
             result.update({
                 'success': True,
-                'generators_used': generators,
-                'formatters_used': formatters,
-                'output_file': str(out_file)
+                'generated_paths': out_paths,
+                'generators_used': list(generated.keys()),
+                'file_name':Path(file_path).name
             })
 
         except Exception as e:
             result['error'] = str(e)
-
+            result['file_name']= Path(file_path).name
+            result['generation_error'] = str(e)
+            result['generation_traceback'] = traceback.format_exc()
+            result['generation_successful'] = False
+            result['success'] = False  # explicitly mark failure
         return result
-
     def _update_stats(self, result: Dict[str, Any]):
         """Update processing statistics"""
         if result['success']:

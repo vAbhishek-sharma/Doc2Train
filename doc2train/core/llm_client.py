@@ -5,17 +5,20 @@ Supports OpenAI, DeepSeek, and local models
 """
 
 from pathlib import Path
+import time
 import openai
 import requests
 import json
 import base64
-import ipdb
+
 from typing import Dict, Any, Optional, List  # Added this line
 from doc2train.config.settings import *
 from doc2train.core.registries.llm_registry import (
     get_llm_plugin,
     get_available_providers,
-    list_llm_plugins
+    get_vision_provider,
+    list_llm_plugins,
+    get_llm_plugin_class
 )
 from doc2train.core.registries.llm_registry import get_available_providers as _registry_get_providers
 
@@ -46,28 +49,90 @@ def call_llm(prompt: str, task: str = 'general', max_retries: int = 3) -> str:
 
 
 
-def call_vision_llm(prompt: str, image_data: dict, max_retries: int = 3) -> str:
-    provider_info = _get_vision_provider()
-    if not provider_info:
-        raise Exception("No vision-capable provider available")
-    plugin_cls = provider_info['plugin_cls']
-    for attempt in range(max_retries):
+def call_vision_llm(prompt: str, images: List[bytes], config: dict) -> str:
+    """
+    Send `prompt` and `image_data` to a vision-capable LLM.
+    Retries up to llm.max_retries, then returns any ocr_text fallback.
+    """
+
+
+    llm_conf    = config.get("llm", {})
+    max_retries = llm_conf.get("max_retries", 1)
+    backoff     = llm_conf.get("retry_backoff", 1)
+
+    # Resolve vision-capable provider + model
+    info = get_vision_provider(
+        provider_name=llm_conf.get("provider"),
+        model_name=   llm_conf.get("model"),
+    )
+    plugin_cls   = info["plugin_cls"]
+    model_to_use = info["model"]
+    plugin = plugin_cls(config)
+
+    last_exc = None
+    for attempt in range(1, max_retries + 1):
         try:
-            if hasattr(plugin_cls, "call_vision"):
-                return plugin_cls.call_vision(prompt, image_data)
-            else:
-                raise Exception(f"Provider {provider_info['provider']} does not support vision API")
+            if not hasattr(plugin_cls, "call_vision"):
+                raise AttributeError(f"{info['provider']} lacks call_vision()")
+            return plugin.call_vision(prompt, images, model=model_to_use)
         except Exception as e:
-            print(f"⚠️  Vision attempt {attempt + 1} failed: {e}")
-            if attempt < max_retries - 1:
-                continue
-            else:
-                ocr_text = image_data.get('ocr_text', '')
-                if ocr_text:
-                    return f"Image contains text: {ocr_text}"
-                else:
-                    return "Unable to process image"
-    return "Image processing failed"
+            last_exc = e
+            print(f"⚠️ Vision attempt {attempt} failed: {e}")
+            if attempt < max_retries:
+                time.sleep(backoff)
+
+    # Retries exhausted → fallback to OCR if available
+    ocr_text = getattr(image_data, "ocr_text", "") or ""
+    if ocr_text:
+        return f"Image contains text: {ocr_text}"
+
+    raise RuntimeError(f"All vision attempts failed: {last_exc}")
+
+
+
+
+
+def _resolve_provider(
+    provider_name: Optional[str] = None,
+    model_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Pick an LLM provider + model, with fallbacks:
+    1. If provider_name is given and registered, use it.
+        – If model_name is supported there, use it; otherwise use its default model.
+    2. If provider_name is missing or unregistered but model_name is given,
+        pick the first provider that supports that model.
+    3. Otherwise, fall back to the first available provider and its default model.
+    Returns a dict: {"provider": str, "plugin_cls": class, "model": str}
+    """
+    available = get_available_providers()
+
+    # 1) Try the requested provider
+    if provider_name in available:
+        cls = get_llm_plugin_class(provider_name)
+        models = cls.supported_models()
+        if model_name and model_name in models:
+            return {"provider": provider_name, "plugin_cls": cls, "model": model_name}
+        # fall back to that provider’s default
+        return {
+            "provider": provider_name,
+            "plugin_cls": cls,
+            "model": cls.get_default_model()
+        }
+
+    # 2) No valid provider requested → look for any provider that supports the requested model
+    if model_name:
+        for name in available:
+            cls = get_llm_plugin_class(name)
+            if model_name in cls.supported_models():
+                return {"provider": name, "plugin_cls": cls, "model": model_name}
+
+    # 3) Ultimate fallback: first provider + its default
+    first = available[0]
+    cls = get_llm_plugin_class(first)
+    return {"provider": first, "plugin_cls": cls, "model": cls.get_default_model()}
+
+
 
 def _get_provider_for_task(task: str) -> dict:
     """
@@ -96,8 +161,8 @@ def _get_fallback_provider() -> dict:
 def _get_vision_provider() -> dict:
     # Select first provider that supports vision
     for name in get_available_providers():
-        plugin_cls = get_llm_plugin(name)
-        if getattr(plugin_cls, "supports_vision", False):
+        plugin_cls = get_llm_plugin_class(name)
+        if  plugin_cls.supports_vision:
             return {"provider": name, "plugin_cls": plugin_cls}
     return None
 
@@ -209,6 +274,9 @@ def process_media_directly(media_path: str, provider: str = None,
         return plugin_cls.process_direct_media(media_path, prompt, **kwargs)
     else:
         raise NotImplementedError(f"Provider {provider} does not support direct media processing.")
+
+
+
 
 if __name__ == "__main__":
     # Test available providers

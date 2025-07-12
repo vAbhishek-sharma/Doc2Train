@@ -3,7 +3,7 @@
 Anthropic Claude plugin for Doc2Train
 """
 import os
-import ipdb
+
 import requests
 from typing import Dict, Any, List, Union, Optional
 from doc2train.plugins.llm_plugins.base_llm_plugin import BaseLLMPlugin
@@ -74,7 +74,7 @@ class AnthropicPlugin(BaseLLMPlugin):
                 'source': {
                     'type': 'base64',
                     'media_type': media_type,
-                    'data': BaseLLMPlugin._encode_image(img_data)
+                    'data': BaseLLMPlugin._encode_image(image_data=img_data)
                 }
             })
         # Append text

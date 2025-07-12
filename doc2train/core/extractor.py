@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
 from doc2train.config.settings import *
-import ipdb
+
 # Import plugin registry for processors
 from doc2train.core.registries.processor_registry import get_processor_for_file, get_supported_extensions_dict
 

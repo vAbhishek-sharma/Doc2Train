@@ -68,7 +68,7 @@ class OpenAIPlugin(BaseLLMPlugin):
             content.append({
                 'type': 'image_url',
                 'image_url': {
-                    'url': f"data:image/{image_type};base64,{self._encode_image(img_data)}"
+                    'url': f"data:image/{image_type};base64,{self._encode_image(image_data=img_data)}"
                 }
             })
 
@@ -137,7 +137,7 @@ class OpenAIPlugin(BaseLLMPlugin):
             content.append({
                 'type': 'image_url',
                 'image_url': {
-                    'url': f"data:image/{image_type};base64,{BaseLLMPlugin._encode_image(img_data)}"
+                    'url': f"data:image/{image_type};base64,{BaseLLMPlugin._encode_image(image_data=img_data)}"
                 }
             })
 

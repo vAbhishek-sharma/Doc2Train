@@ -69,7 +69,7 @@ class GooglePlugin(BaseLLMPlugin):
             parts.append({
                 'inlineData': {
                     'mimeType': mime_type,
-                    'data': self._encode_image(img_data)
+                    'data': self._encode_image(image_data=img_data)
                 }
             })
 
@@ -140,7 +140,7 @@ class GooglePlugin(BaseLLMPlugin):
             parts.append({
                 'inlineData': {
                     'mimeType': mime_type,
-                    'data': BaseLLMPlugin._encode_image(img_data)
+                    'data': BaseLLMPlugin._encode_image(image_data=img_data)
                 }
             })
 

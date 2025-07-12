@@ -1,5 +1,5 @@
 from doc2train.core.registries.plugin_registry import PluginRegistry
-import ipdb
+
 class ProcessorRegistry(PluginRegistry):
     def __init__(self):
         super().__init__()
