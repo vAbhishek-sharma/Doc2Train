@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# main.py - Doc2Train v2.0 Enhanced Complete Implementation
+# main.py - Doc2Train Enhanced Complete Implementation
 """
-Doc2Train v2.0 Enhanced - Enterprise Document Processing
+Doc2Train  Enhanced - Enterprise Document Processing
 Convert documents to AI training data at god speed!
 
 Complete implementation with all enhanced features:
@@ -64,7 +64,7 @@ def print_banner():
     """Print enhanced Doc2Train banner"""
     banner = """
 ╔══════════════════════════════════════════════════════════════════╗
-║                       Doc2Train v2.0 Enhanced                    ║
+║                       Doc2Train Enhanced                    ║
 ║               🚀 Enterprise Document Processing 🚀              ║
 ║          Real-time • Parallel • Fault-tolerant • Smart           ║
 ║                     Plugin Architecture Ready                    ║

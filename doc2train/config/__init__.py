@@ -1,6 +1,6 @@
 # config/__init__.py
 """
-Configuration for Doc2Train v2.0
+Configuration for Doc2Train
 """
 
 from .settings import *

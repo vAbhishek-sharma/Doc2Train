@@ -1,6 +1,6 @@
 # core/pipeline.py
 """
-Complete processing pipeline for Doc2Train v2.0 Enhanced
+Complete processing pipeline for Doc2Train Enhanced
 Orchestrates the entire document processing workflow with parallel execution
 """
 

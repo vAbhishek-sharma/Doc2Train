@@ -1,6 +1,6 @@
 # utils/validation.py
 """
-Complete validation system for Doc2Train v2.0 Enhanced
+Complete validation system for Doc2Train Enhanced
 Input validation, content quality assessment, and configuration validation
 """
 

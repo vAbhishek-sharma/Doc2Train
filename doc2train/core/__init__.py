@@ -1,7 +1,7 @@
 
 # core/__init__.py
 """
-Core modules for Doc2Train v2.0
+Core modules for Doc2Train
 """
 
 from .extractor import extract_content, extract_batch, get_supported_files

@@ -11,7 +11,7 @@ from pathlib import Path
 def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(
-        description="Doc2Train v2.0 - Convert documents to AI training data",
+        description="Doc2Train - Convert documents to AI training data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -76,7 +76,7 @@ Commands:
         return
 
     if args.info:
-        print("Doc2Train v2.0.0")
+        print("Doc2Train.0")
         print("Python package for converting documents to AI training data")
         return
 

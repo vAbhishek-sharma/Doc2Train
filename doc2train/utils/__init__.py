@@ -1,5 +1,5 @@
 """
-Complete utilities package for Doc2Train v2.0 Enhanced
+Complete utilities package for Doc2Train Enhanced
 All utility modules for enterprise document processing
 """
 

@@ -256,7 +256,7 @@ def create_default_env_file():
     if env_file.exists():
         return False
 
-    env_content = """# Doc2Train v2.0 Enhanced Configuration
+    env_content = """# Doc2Train Enhanced Configuration
 # Edit this file with your actual API keys and settings
 
 # API Keys (Required for LLM processing)

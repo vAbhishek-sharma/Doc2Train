@@ -1,4 +1,4 @@
-# Modern Python packaging configuration for Doc2Train v2.0
+# Modern Python packaging configuration for Doc2Train
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

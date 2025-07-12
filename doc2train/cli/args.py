@@ -11,7 +11,7 @@ from pathlib import Path
 def create_enhanced_parser() -> argparse.ArgumentParser:
     """Create the complete enhanced argument parser """
     parser = argparse.ArgumentParser(
-        description="Doc2Train v2.0 Enhanced - Enterprise document processing with Smart PDF Analysis",
+        description="Doc2Train Enhanced - Enterprise document processing with Smart PDF Analysis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=get_examples_text(),
         argument_default=argparse.SUPPRESS

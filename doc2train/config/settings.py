@@ -1,7 +1,7 @@
 #TO be Deprecated and removed
 # config/settings.py
 """
-Simple configuration for Doc2Train v2.0
+Simple configuration for Doc2Train
 Everything you need to customize is here in one place
 """
 

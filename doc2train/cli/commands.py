@@ -1,6 +1,6 @@
 # cli/commands.py
 """
-Complete CLI commands system for Doc2Train v2.0 Enhanced
+Complete CLI commands system for Doc2Train Enhanced
 Handles all command execution with proper error handling and validation
 """
 
@@ -172,7 +172,7 @@ def execute_cache_clear_command(config: Dict[str, Any]) -> Dict[str, Any]:
 
 def execute_info_command(config: Dict[str, Any]) -> Dict[str, Any]:
     """Execute info/status commands"""
-    print("ℹ️ Doc2Train v2.0 Information:")
+    print("ℹ️ Doc2Train Information:")
 
     # System info
     print(f"\n🖥️ System Information:")
@@ -277,7 +277,7 @@ def route_command(config: Dict[str, Any], file_paths: List[str] = None) -> Dict[
 def print_command_help():
     """Print help for available commands"""
     help_text = """
-🚀 Doc2Train v2.0 Enhanced - Available Commands
+🚀 Doc2Train Enhanced - Available Commands
 
 PROCESSING COMMANDS:
   python main.py <input> --mode extract-only    # Extract text and images only

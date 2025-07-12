@@ -1,6 +1,6 @@
 # utils/config_loader.py
 """
-Unified YAML configuration loader for Doc2Train v2.0
+Unified YAML configuration loader for Doc2Train
 """
 
 import yaml

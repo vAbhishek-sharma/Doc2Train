@@ -1,6 +1,6 @@
 # utils/files.py
 """
-Complete file utilities for Doc2Train v2.0 Enhanced
+Complete file utilities for Doc2Train Enhanced
 File operations, directory management, and file system utilities
 """
 

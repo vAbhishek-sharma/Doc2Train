@@ -1,6 +1,6 @@
 # utils/process.py
 """
-Complete process utilities for Doc2Train v2.0 Enhanced
+Complete process utilities for Doc2Train Enhanced
 Process management, threading utilities, and system monitoring
 """
 

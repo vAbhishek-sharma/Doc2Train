@@ -1,6 +1,6 @@
 # cli/__init__.py
 """
-Complete CLI package for Doc2Train v2.0 Enhanced
+Complete CLI package for Doc2Train Enhanced
 Command line interface components
 """
 

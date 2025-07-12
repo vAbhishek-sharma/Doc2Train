@@ -16,7 +16,7 @@ import io
 
 # Configure Streamlit
 st.set_page_config(
-    page_title="Doc2Train v2.0",
+    page_title="Doc2Train",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -59,7 +59,7 @@ def main():
     """Main Streamlit application"""
 
     # Header
-    st.markdown('<h1 class="main-header">🚀 Doc2Train v2.0</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🚀 Doc2Train</h1>', unsafe_allow_html=True)
     st.markdown('<p style="text-align: center; font-size: 1.2rem; color: #666;">Convert your documents to AI training data - no coding required!</p>', unsafe_allow_html=True)
 
     # Check if API is running
